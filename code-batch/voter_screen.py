@@ -1,4 +1,16 @@
-#mport numpy as np
+
+#************************************************************************************
+#                               voter_screen.py                                     *
+#                                                                                   *
+#  Input is CC Member Excel spreadsheet, NVVoter.pl Processed Secretary of          *
+#  State base.csv file and precinct-to-district cross reference .csv file.          *
+#  Also input is a NickName to Given Name Spreadsheet to aid in name matching.      *
+#                                                                                   *
+#  Output is an expanded CC member csv file that adds the districts each member     *
+#  votes for, their voting propensity and history, along with age and               *
+#  date registered to vote to the original member file information.                 *
+# *********************************************************************************** 
+import numpy as np
 import argparse
 import errno
 from csv  import reader
@@ -6,17 +18,24 @@ from csv import DictReader
 
 #
 # get command line arguments
-#
+# voter-screen.py" sd5.csv SD 5 
 parser = argparse.ArgumentParser()
 parser.add_argument("infile")
 parser.add_argument("type")
 parser.add_argument("district")
 parser.add_argument("-ad", "--AD")
 parser.add_argument("-sd", "--SD")
+parser.add_argument("-all", "--ALL")
 
 args = parser.parse_args()
 # echo the command line
 print (args.infile, args.type, args.district)
+
+def div0(x,y):
+    try:
+        return x/y
+    except ZeroDivisionError:
+        return 0
 
 column = ""
 if args.type == "SD":
@@ -50,9 +69,12 @@ with open(analyze_file, mode='r') as csv_file:
 
     # create document
     for row in csv_reader:
-        if (row[column] != args.district):
+        if (args.type == 'ALL'):
+            pass
+        elif (row[column] != args.district):
             continue
         allvoters+=1
+        #vote = str(row['27'])
         vote = str(row['11/03/20 general'])
 
         if (row['Party'] == 'Democrat'):
@@ -88,8 +110,11 @@ with open(analyze_file, mode='r') as csv_file:
 
     print( 'VOTERS: {:6d} REP: {:6d} DEM: {:6d} NONP: {:6d} IAP: {:6d} OTH: {:6d}'.format(allvoters, republicans, democrats, nonps, iaps, other))
     print( ' VOTED: {:6d} REP: {:6d} DEM: {:6d} NONP: {:6d} IAP: {:6d} OTH: {:6d}'.format(anyvote, repvote, demvote, nonpvote, iapvote, othvote))
-    print( '   T/O:  {:0.3f} REP:  {:0.3f} DEM:  {:0.3f} NONP:  {:0.3f} IAP:  {:0.3f} OTH:  {:0.3f}'.format(anyvote/allvoters, repvote/republicans, demvote/democrats, nonpvote/nonps, iapvote/iaps, othvote/other))
+    print( '   T/O:  {:0.3f} REP:  {:0.3f} DEM:  {:0.3f} NONP:  {:0.3f} IAP:  {:0.3f} OTH:  {:0.3f}'.format(div0(anyvote,allvoters), div0(repvote,republicans), div0(demvote,democrats), div0(nonpvote,nonps), div0(iapvote,iaps), div0(othvote,other)))
+    print( '   T/O:  {:0.3f} NONA:  {:0.3f}'.format(div0(anyvote,allvoters), div0(nonpvote+iapvote+othvote,nonps+iaps+other)))
     
+
+
 
     # count by party 
     
