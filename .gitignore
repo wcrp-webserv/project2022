@@ -1,3 +1,12 @@
 venv
 .vscode/launch.json
 .vscode/settings.json
+testdata
+voterdata*.csv
+code-perl/VoterList.*.csv
+code-perl/print.txt
+code-perl/precinct.csv
+code-perl/debug.txt
+code-perl/base.csv
+print.txt
+code-batch/.DS_Store
