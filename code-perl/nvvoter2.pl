@@ -41,7 +41,7 @@ my @CfgHeadings =();                            # Array of Text Headings for spr
 my @CfgRow =();                                 # Data from the Row of spreadsheet currently being processed
 
 # primary input from sec state
-my $inputFile = "VoterList.ElgbVtr.43842.020521082058.csv";
+my $inputFile = "VoterList.ElgbVtr.43842.060420175555.csv";
 my $inputFileh;
 my $baseFile = "base.csv";
 my $baseFileh;
@@ -287,6 +287,14 @@ my $noVotes  = 0;
 my $noData   = 0;
 
 #
+#  Array that will be loaded with the highest voter ID that voted in each of the 20 elections being tracked
+#
+my @HighVoterIDs = (
+    -1,                                         # -1 indicates not yet loaded
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0     # Highest Voter ID that voted in the 20 elections (inits at 0)
+);
+
+#
 # main program controller
 #
 sub main {
@@ -340,6 +348,10 @@ sub main {
     my $j = @csvHeadings;
     for ( my $i = 0 ; $i < ( $j - 1 ) ; $i++ ) {
         $csvHeadings[$i] =~ s/\s//g;
+        #
+        #  If heading entry begins with "Residential " remove that part
+        #
+        $csvHeadings[$i] =~ s/Residential//;
     }
     # $csvHeadings is now the header of the incoming voterdata-s.csv file ready to hash with each data line
 
@@ -893,14 +905,33 @@ sub voterStatsLoad() {
 
     $line1Read = $Scsv->getline($voterStatsFileh);    # get header
     @voterStatsHeadings = @$line1Read;    # in voter Stats Headings Array
+
                                           # Build the UID->survey hash
     while ( $line1Read = $Scsv->getline($voterStatsFileh) ) {
-        my @values1 = @$line1Read;
-        push @voterStatsArray, \@values1;
-        $loadCnt++;
+        if ($line1Read->[0] == 0 ) {
+            #
+            # This is the Highest Voter ID in each election record
+            # copy to @HighVoterID array
+            #
+            $HighVoterIDs[0] = 0;                       # indicate data loaded
+            for my $z (1 .. 20) {
+                $HighVoterIDs[$z] = $line1Read->[$z];   # load values into array
+                printLine("... $voterStatsHeadings[$z] - High ID = $HighVoterIDs[$z] \n")
+            }
+        } else {
+            #
+            # This is a normal voter vote data record, add to voterStatsArray
+            #
+            my @values1 = @$line1Read;
+            push @voterStatsArray, \@values1;
+            $loadCnt++;
+        }
     }
     close $voterStatsFileh;
     printLine("Completed building Vote History hash for $loadCnt votes.\n");
+    if ($HighVoterIDs[0] == -1) {
+        printLine ("---> No High Voter ID record detected...\n");
+    }
     return @voterStatsArray;
 }
 #---------------------------------------------------------------
@@ -1008,7 +1039,7 @@ sub load_config {
     }
     printLine ("Configured to use these 20 elections\n");
     for my $j (0 .. 19) {
-      ##  printLine ("$ElecDates[$j] \n");                            # display on console and in print file
+        printLine ("$ElecDates[$j] \n");                            # display on console and in print file
         $baseHeading[$j+26] = $ElecDates[$j];                       # copy to active header
     }
     return;
