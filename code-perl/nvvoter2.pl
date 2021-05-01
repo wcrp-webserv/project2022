@@ -535,6 +535,9 @@ sub main {
 
         @baseProfile = ();
         foreach (@baseHeading) {
+            if ($baseLine{$_} =~ /[\"\',]/) {
+                $baseLine{$_} = "\"".$baseLine{$_}."\"";
+            }
             push( @baseProfile, $baseLine{$_} );
         }
         print $baseFileh join( ',', @baseProfile ), "\n";
