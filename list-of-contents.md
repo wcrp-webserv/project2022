@@ -6,7 +6,7 @@ Programs to create a county voter “base.csv” data file from the Secretary of
 nvvoter1.pl
 -----------
 Command syntax:
-Perl NVVoter.pl  [-infile <SOSfile> ] [-outfile <Outfile>] [-config <configfile>]
+Perl nvvoter.pl  [-infile <SOSfile> ] [-outfile <Outfile>] [-config <configfile>]
 SOSfile  - Secretary of State Vote History File (.VtHst. file downloaded from SOS web site)
 outfile – processed  vote history file.  Default name is voterdata.csv  in current directory
 configfile – Configuration file.  Default is nvconfig.xlsx  in current directory.
@@ -16,7 +16,7 @@ This program takes the Secretary of state vote history file which has a single r
 nvvoter2.pl
 ---------------
 Command syntax:
-Perl NVVoter2.pl [-infile <SOSfile>] [-outfile <outfile>] [-config <configfile>]
+Perl nvvoter2.pl [-infile <SOSfile>] [-outfile <outfile>] [-config <configfile>]
     [-statsfile <statsfile>] [-pctfile <precinctfile>] [-emailfile <emailfile>]
 SOSfile – Secretary of State Eligible Voter File (.ElgbVtr. file downloaded from SOS web site)
 Outfile – final base.csv output file. Default is base.csv in current directory.
@@ -58,7 +58,7 @@ Outfile – Extended member spreadsheet.  Default is extract.csv in current dire
 Note: Program also has as input the file NickNameList.xls which is used to math full names and nicknames. 
 
 Program to report one or more I360 survey results.
-------------------------------------------------------------------------------------
+--------------------------------------------------
 nvreport.pl
 ------------
 Command syntax:
