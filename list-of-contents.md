@@ -3,8 +3,8 @@ Election Management
 Programs to create a county voter “base.csv” data file from the Secretary of State data file:
 ---------------
 
-NVVOTER1.PL
----------------
+nvvoter1.pl
+-----------
 Command syntax:
 Perl NVVoter.pl  [-infile <SOSfile> ] [-outfile <Outfile>] [-config <configfile>]
 SOSfile  - Secretary of State Vote History File (.VtHst. file downloaded from SOS web site)
@@ -13,7 +13,7 @@ configfile – Configuration file.  Default is nvconfig.xlsx  in current directo
 		This file indicates the 20 election cycles to compile votes  from each voter .
 This program takes the Secretary of state vote history file which has a single row for every vote and processes it into file that contains a single line for each voter listing whether or not they voted in each of 20 election cycles. The particular cycles are specified in “configfile”.    Note:  After running NVVOTER1.PL  the output file must be sorted by voter ID to become input for NVVOTER2.PL.
 
-NVVOTER2.PL
+nvvoter2.pl
 ---------------
 Command syntax:
 Perl NVVoter2.pl [-infile <SOSfile>] [-outfile <outfile>] [-config <configfile>]
@@ -28,8 +28,7 @@ Emailfile – optional file that has email addresses to add to base.csv.  Defaul
 
  
 Program to split a county base.csv file into simplified and formatted precinct spreadsheets.
-
-BASE_PRECINCT_XLSX.PY
+base_precinct_xlsx.py
 ---------------------
 Command syntax:
 py base_precinct_xlsx.py [-s <basefile>]  [-p <precinct]
@@ -46,10 +45,11 @@ ddd = total registered democrats in this precinct
 ooo = total registered no part or other party voters in this precinct.
  
 Program to extend member file with some information from the county base.csv file.
-
-MEMBEREXTEND.PY [-s <SOSfile>] [-p <Pctfile>] [-m <memfile>] [-0 <outfile>]
+---------------
+memberextend.py
 ---------------------
-
+Command sytax:
+MEMBEREXTEND.PY [-s <SOSfile>] [-p <Pctfile>] [-m <memfile>] [-0 <outfile>]
 SOSfile – the county base.csv file. Default is base.csv in current directory.
 Pctfile – cross reference file of precinct to district.
 Memfile – original Excel member spreadsheet
@@ -57,12 +57,13 @@ Outfile – Extended member spreadsheet.  Default is extract.csv in current dire
 Note: Program also has as input the file NickNameList.xls which is used to math full names and nicknames. 
 
 Program to report one or more I360 survey results.
-NVREPORT.PL
+---------------
+nvreport.pl
 ---------------------
 Command syntax:
-NVReport [-infile <filename>] [ -outfile<filename>]  [-survey <path>]
+NVReport [-infile <filename.csv>] [ -outfile<filename>]  [-survey <path>]
          [-select param,param,...]
--infile <filename> reports from a single file.
+-infile <filename> reports from a single file and must be csv format.
 -survey <path> reports from survey files in the specified directory. 
 Note: In the absence of either -infile or -survey the current working directory  will be used as if a -survey <cwd> were specified.
 -select specifies which files in the survey directory will be selected. 
