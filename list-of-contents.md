@@ -28,6 +28,7 @@ Emailfile – optional file that has email addresses to add to base.csv.  Defaul
 
  
 Program to split a county base.csv file into simplified and formatted precinct spreadsheets.
+--------------------------------------------------------------------------------------------
 base_precinct_xlsx.py
 ---------------------
 Command syntax:
@@ -45,9 +46,9 @@ ddd = total registered democrats in this precinct
 ooo = total registered no part or other party voters in this precinct.
  
 Program to extend member file with some information from the county base.csv file.
----------------
+------------------------------------------------------------------------------------
 memberextend.py
----------------------
+----------------
 Command sytax:
 MEMBEREXTEND.PY [-s <SOSfile>] [-p <Pctfile>] [-m <memfile>] [-0 <outfile>]
 SOSfile – the county base.csv file. Default is base.csv in current directory.
@@ -57,9 +58,9 @@ Outfile – Extended member spreadsheet.  Default is extract.csv in current dire
 Note: Program also has as input the file NickNameList.xls which is used to math full names and nicknames. 
 
 Program to report one or more I360 survey results.
----------------
+------------------------------------------------------------------------------------
 nvreport.pl
----------------------
+------------
 Command syntax:
 NVReport [-infile <filename.csv>] [ -outfile<filename>]  [-survey <path>]
          [-select param,param,...]
