@@ -1,0 +1,20 @@
+GitHub directory tree
+
+project2022
+├── _.vscode
+│   ├── settings.json
+│   └── launch.json
+├── _code-batch
+│   ├── precinct-org
+│   ├── p
+│   ├── p
+├── _code-online
+│   ├── p
+│   ├── p
+│   ├── p
+├── _testdata
+│   ├── p
+├── _env
+│   ├── p
+.gitignore
+README.md

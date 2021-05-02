@@ -1,0 +1,22 @@
+electioneering directory tree
+
+election2020
+├── _.vscode
+│   ├── settings.json
+│   └── launch.json
+├── _code-batch
+│   ├── precinct-org
+│   ├── p
+│   ├── p
+├── _code-online
+│   ├── p
+│   ├── p
+│   ├── p
+├── _testdata
+│   ├── p
+├── _interns
+│   ├── resumes
+│   ├── hiring documentation
+
+│   ├── timesheets
+
