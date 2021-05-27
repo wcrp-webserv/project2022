@@ -36,7 +36,7 @@ my $CfgFile = "nvconfig.xlsx";                  # program configuration spreadsh
 my @CfgHeadings =();                            # Array of Text Headings for spreadsheet
 my @CfgRow =();                                 # Data from the Row of spreadsheet currently being processed
 
-my $voterHistoryFile = "VoterList.VtHst.43842.020521082058.csv";
+my $voterHistoryFile = "VoterList.VtHst.43842.060420175555.csv";
 my $voterHistoryFileh;
 my @voterHistoryLine = ();
 my %voterHistoryLine;
@@ -47,6 +47,8 @@ my $voterDataFileh;
 my @voterData;
 my %voterDataLine = ();
 my @voterDataLine;
+
+my @electionValue = ();
 
 my $printFile = "print.txt";
 my $printFileh;
@@ -110,6 +112,7 @@ my @voterDataHeading = (
     "Score",           #29 Calculated
 );
 
+
 my @precinctPolitical;
 my $RegisteredDays   = 0;
 my $pollCount        = 0;
@@ -138,6 +141,14 @@ my @voterHeadingDates =
   ( 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 );
 my @voterEarlyDates =
   ( 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 );
+
+#
+#  Array to compile the highest voter ID that voted in each of the 20 elections being tracked
+#
+my @HighVoterID = (
+    0,                                          # VoterID = 0 indicates this record
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0     # Highest Voter ID that voted in the 20 elections (inits at 0)
+);
 
 #
 # main program controller
@@ -193,30 +204,36 @@ sub main {
     $csvHeadings[3] = "votecode";
     $csv->column_names(@csvHeadings);
 
-    # Build heading for new voting record
+    # Build heading for new voting record, open output file and write header row
+    #
     $voterDataHeading = join( ",", @voterDataHeading );
     $voterDataHeading = $voterDataHeading . "\n";
     open( $voterDataFileh, ">$voterDataFile" )
-      or die "Unable to open base: $voterDataFile Reason: $! \n";
+      or die "Unable to open voter info file: $voterDataFile Reason: $! \n";
     print $voterDataFileh $voterDataHeading;
 
 ##
-
+    #
     #  initialize oldest election date we care about
     #
-    my $string         = $voterDataHeading[20];
-    my $oldestElection = substr( $string, 0, 8 );
-    my $oldestDate     = Time::Piece->strptime( $oldestElection, "%m/%d/%y" );
-    printLine("Oldest Election Date: $oldestElection\n");
+    my $string         = $voterDataHeading[20];                                 # Fetch Oldest Election we're configured for
+    my $oldestElection = substr( $string, 0, 8 );                               # extract date
+    my $oldestDate     = Time::Piece->strptime( $oldestElection, "%m/%d/%y" );  # Convert to Date/Time object
+    printLine("Oldest Election Date: $oldestElection\n");                       # display to logging stream(s)
     #
-    # initialize binary election date arrays
+    # initialize binary election date/time object arrays from configuration test dates
     #
     for ( $vote = 1 ; $vote <= 20 ; $vote++ ) {
         my $edate        = substr( $voterDataHeading[$vote], 0, 8 );
         my $electiondate = Time::Piece->strptime( $edate, "%m/%d/%y" );
-        $voterHeadingDates[$vote] = $electiondate;
-        $voterEarlyDates[$vote]   = ( $electiondate - ONE_WEEK ) - ONE_WEEK;
+        $voterHeadingDates[$vote] = $electiondate;                              # this is election date
+        $voterEarlyDates[$vote]   = ( $electiondate - ONE_WEEK ) - ONE_WEEK;    # this is early voting start
     }
+    #
+    #  At this point:
+    #     1. $voterDataHeading[1-20]  contain text election date & type
+    #     2. $voterHeadingDates[1-20] contain Date/Time object election dates
+    #     3. $voterEarlyDates[1-20]   contain Date/Time object early voting start dates
     #
     # Initialize process loop and open first output
     $linesRead = 0;
@@ -236,53 +253,47 @@ sub main {
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   NEW:
-
+    #
+    #  Read Voter History File row by row (VoterHistoryID,VoterID,ElectionDate,VoteType)
+    #
     while ( $line1Read = $csv->getline_hr($voterHistoryFileh) ) {
         $linesRead++;
         $linesIncRead += 1;
-
         #       if ( $linesIncRead >= int( 10000) ) {
-        #           printLine("$linesRead lines read \n");
+        #           printLine("$linesRead lines read \n");      # log progress
         #           $linesIncRead = 0;
         #       }
-
-        # then create the values array to complete preprocessing
-        %csvRowHash = %{$line1Read};
-
-        # - - - - - - - - - - - - - - - - - - - - - - - - -
-        # Create hash of line for transformation
-        # - - - - - - - - - - - - - - - - - - - - - - - - -
-        # for first record of a series for a voter
-        $currentVoter = $csvRowHash{"voterid"};
+        %csvRowHash = %{$line1Read};                # Hash this row to row titles
+        $currentVoter = $csvRowHash{"voterid"};     # get voter id of this vote record
         if ( $stateVoterID == 0 ) {
-
-# this is the very first record read, set this voter ID as the StateVoterID being processed
+            # This is the very first record of the history file.
+            # Set this voter ID as the StateVoterID being processed
             $stateVoterID  = $currentVoter;
-            %voterDataLine = ();
-
+            %voterDataLine = ();                    # initialize voter data line we're building
             # clear all election data buckets to blanks
             for ( $cycle = 0 ; $cycle <= 20 ; $cycle++ ) {
                 $voterDataLine{ $voterDataHeading[$cycle] } = " ";
             }
         }
-
         # for all records build a line for each voter with all their
         # votes by election
       next_voter:
         if ( $currentVoter eq $stateVoterID ) {
-#
-#  Processing the next vote record for this voter ID Set ID in case this is 1st record for this voter
-#
+            #
+            #  Processing the next vote record for this voter ID
+            #  Set ID in output row in case this is 1st record for this voter
+            #
             $voterDataLine{"statevoterid"} = $csvRowHash{"voterid"};
             #
             # place vote in correct election bucket (14 days <= electiondate)
             #
             my $vdate;
-            my $votedate = substr( $csvRowHash{"electiondate"}, 0, 10 );
+            my $votedate = substr( $csvRowHash{"electiondate"}, 0, 10 );        # fetch election date from SOS record
             my $datelen =length($votedate);
-
+            #
+            #  Convert SOS Vote History date to Date/Time object
             if ($datelen <= 7) {
-                 $vdate    = Time::Piece->strptime( $votedate, "%m/%d/%y" );  #change %Y -> %y??
+                $vdate    = Time::Piece->strptime( $votedate, "%m/%d/%y" );  #change %Y -> %y??
             } else {
                 $vdate    = Time::Piece->strptime( $votedate, "%m/%d/%Y" );  #change %Y -> %y??
             }
@@ -308,20 +319,23 @@ sub main {
                 if ( $vdate >= $twoweeksearly && $vdate <= $electiondate ) {
                     #
                     #  This is the election this vote is for, stash the code
-                    $voterDataLine{ $voterDataHeading[$vote] } =
-                      $csvRowHash{votecode};
+                    $voterDataLine{ $voterDataHeading[$vote] } = $csvRowHash{"votecode"};
 
-               # add to total votes for this voter & say not a bad election date
+                    # add to total votes for this voter & say not a bad election date
                     $totalVotes++;
                     $baddate = 0;
+                    #
+                    # See if voter ID is higher that current highest for this election
+                    #
+                    if ( $currentVoter > $HighVoterID[$vote]) {
+                        $HighVoterID[$vote] = $currentVoter;                # this is now highest voter ID in this election
+                    }
                     last;
                 }
             }
-            if ( $baddate != 0 ) {
-                printLine(
-"Unknown Election Date  $csvRowHash{'electiondate'}  for voter $csvRowHash{'voterid'} \n"
-                );
-            }
+            #if ( $baddate != 0 ) {
+            #    printLine("Unknown Election Date  $csvRowHash{'electiondate'}  for voter $csvRowHash{'voterid'} \n");
+            #}
             next;
         }
         else {
@@ -363,7 +377,7 @@ sub main {
                 $linesIncWritten = 0;
             }
 
-            # clear all election data buckets to blanks for next voter
+            # clear output to blanks for next voter
             for ( $cycle = 0 ; $cycle <= 20 ; $cycle++ ) {
                 $voterDataLine{ $voterDataHeading[$cycle] } = " ";
             }
@@ -389,6 +403,7 @@ main();
 # Common Exit
 EXIT:
 
+Add_HighIDs();                              # write voter ID 0 record with highest ID in each election
 close(voterHistoryFileh);
 close($voterDataFileh);
 
@@ -479,6 +494,7 @@ sub evaluateVoter {
             # - MB mail ballot
             # - PP polling place
             # - PV provisional vote
+            # - BR ballot received (prior to election day, becomes MB at election time)
             #
             if ( $voterDataLine{ $voterDataHeading[$vote] } eq 'N' ) {
                 $badcode = 0;
@@ -647,6 +663,8 @@ sub evaluateVoter {
     if ( $votesTotal > 0 ) {
         $voterScore  = ( $generalCount + $primaryCount ) / ($oldestCast) * 10;
         $voterScore2 = round($voterScore);
+    }else{
+        $voterScore2 = 0;                               # if never voted, call WEAK
     }
 
     if ( $voterScore2 > 5 ) {
@@ -675,7 +693,7 @@ sub evaluateVoter {
 #---------------------------------------------------------------
 #
 #  Load the configuration spreadsheet.
-#  Currently it only contains the election cycle dates
+#  Currently it only contains the election cycle dates, types and vote weights
 #
 sub load_config {
     #
@@ -698,14 +716,17 @@ sub load_config {
         @CfgHeadings = Spreadsheet::Read::row($bookdata->[1], $j);
         $row = $j;
         if (substr($CfgHeadings[0], 0, 1) eq "#") {
-            next;                                                   # ignore comment lines
+            next;                                                   # ignore comment lines before header row
         }
-        if ($CfgHeadings[0] eq "Election Date") {
+        if ($CfgHeadings[0] eq "Election Date") {                   # Found Heading line, 
+            if (($CfgHeadings[1] ne "Election Type") or ($CfgHeadings[2] ne "Vote Weight")) {
+                die("Invalid Configuration, Headings Not:\n Election Date, Election Type, Vote Weight\n")
+            }
             last;
         }
     }
     if ($row >= $MaxRows) {
-        die ("Invalid Configuration, no Election Dates Defined \n");
+        die ("Invalid Configuration, no \"Election Date\" heading not found \n");
     }
     #
     #  Now load the election date configuration data
@@ -739,7 +760,8 @@ sub load_config {
         $dd = sprintf( "%02d", $date[$dx] );
         $yy = sprintf( "%02d", substr( $date[$yx], 2, 2 ) );
         $ElecDate = "$mm/$dd/$yy $CfgRow[1]";                       # build "mm/dd/yy type" string
-        push (@ElecDates, $ElecDate);
+        push (@ElecDates, $ElecDate);                               # save election column headers
+        push (@electionValue, $CfgRow[2]);                          # save election voting weights
         if ($edx >= 19 ) {
             last;                                                   # only take in 20 elections
         }
@@ -750,9 +772,29 @@ sub load_config {
     }
     printLine ("Configured to use these 20 elections\n");
     for my $j (0 .. 19) {
-       ## printLine ("$ElecDates[$j] \n");                            # display on console and in print file
+        printLine ("$ElecDates[$j] Voting Weight=$electionValue[$j]\n");                            # display on console and in print file
         $voterDataHeading[$j+1] = $ElecDates[$j];                   #copy to active header
     }
+    return;
+}
+
+#----------------------------------------------------------------
+#
+#  Write thesummary record at EOF listing highest ID that voted in each election
+#
+sub Add_HighIDs {
+    #
+    # prepare to write out the voter data
+    # build array of zeroes to start
+    #
+    @voterData = ();
+    foreach (@voterDataHeading) {
+        push( @voterData, 0 );
+    }
+    for my $i (1 .. 20) {
+        $voterData[$i] = $HighVoterID[$i];                      # add in highest voter IDs for each election
+    }
+    print $voterDataFileh join( ',', @voterData ), "\n";
     return;
 }
 #---------------------------------------------------------------
@@ -766,4 +808,5 @@ sub printLine {
         print $printFileh PROGNAME . $datestring . ' ' . $printData;
     }
     print( PROGNAME . $datestring . ' ' . $printData );
+    return;
 }

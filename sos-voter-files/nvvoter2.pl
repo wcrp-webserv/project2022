@@ -83,6 +83,10 @@ my $adPoliticalHeadings = "";
 my $stats;
 my $emails;
 
+my @electionValue = ();
+my $regTimePiece = 0;
+my $debug = 0;
+
 my $helpReq     = 0;
 my $maxLines    = "250";
 my $voteCycle   = "";
@@ -497,7 +501,7 @@ sub main {
             $noVotes++;
         }
 
-        # calc dates to now as days
+        # calc age and registration days
         calc_days();
 #
 #  locate email address if available
@@ -532,26 +536,25 @@ sub main {
                 print $emailLogFileh join( ',', @emailProfile ), "\n";
             }
         }
-
+        #
+        # Finally - output finished base.csv row from $baseLine
+        #
         @baseProfile = ();
         foreach (@baseHeading) {
             if ($baseLine{$_} =~ /[\"\',]/) {
-                $baseLine{$_} = "\"".$baseLine{$_}."\"";
+                $baseLine{$_} = "\"".$baseLine{$_}."\"";            # Quote column entry if it contains comma or quote mark
             }
-            push( @baseProfile, $baseLine{$_} );
+            push( @baseProfile, $baseLine{$_} );                    # build output line in baseProfile
         }
-        print $baseFileh join( ',', @baseProfile ), "\n";
-
-        
+        print $baseFileh join( ',', @baseProfile ), "\n";           # write this row to base.csv file
         $linesWritten++;
-
         #
         #  Do the precinct stats accumulation for this record
         #
         calc_precinct();
-
-        #        #
-        #        # For now this is the in-elegant way I detect completion
+        #
+        # For now this is the in-elegant way I detect completion
+        #
         if ( eof($inputFileh) ) {
             write_precinct();                   # write the precinct.csv file
             goto EXIT;
@@ -588,7 +591,7 @@ exit;
 
 #---------------------------------------------------------------
 #
-#  Routine to calculate age registered days
+#  Routine to calculate age & registered days
 #
 sub calc_days {
     my $birthdate = $csvRowHash{"BirthDate"};
@@ -643,14 +646,71 @@ sub calc_days {
         $yy = 2016;
     }
     $adjustedDate = "$mm/$dd/$yy";
-#    printLine("line 515 adjustedDate:  $adjustedDate  \n");
+#    printLine("line 648 adjustedDate:  $adjustedDate  \n");
 
     $before  = Time::Piece->strptime( $adjustedDate, "%m/%d/%Y" );
+    $regTimePiece = $before;                                            # save encoded registration date for later work
     $now     = localtime;
     $regdays = $now - $before;
     $regdays = ( $regdays / (86400) );
     $regdays = round($regdays);
     $baseLine{"RegisteredDays"} = $regdays;
+    #
+    #  Find oldest election reg date allows vote in.  If older vote, use that date
+    #  as it means voter re-registered at some point.
+    #
+    my $rstop = 0;
+    my $ovote="";
+    my $test = 0;
+    my $vid = $csvRowHash{"VoterID"};
+    for my $j (0 .. 19) {
+        if ($rstop == 0) {
+            my $edate = Time::Piece->strptime( substr($baseHeading[$j+26], 0 , 8), "%m/%d/%y" );       # date of this election
+            if ($edate < $regTimePiece) {
+                $rstop = $j;                                                            # index+1 to oldest election registered for
+            }
+        }else{
+            #
+            #  See if older vote than registration date
+            #
+            if ($baseLine{$baseHeading[$j+26]} ne "") {
+                $rstop = $j;                                                             # must have re-registered
+                $test = 1;
+            }
+        }
+    }
+    #
+    #  $rstop = index to oldest possible vote for this voter.
+    #  calculate voter propensity to vote strength based on
+    #  this many possible votes.
+    #
+    my $maxstrength = 0;
+    my $voterstrength = 0;                      # init accumulators
+    for my $j (0 .. $rstop) {
+        $maxstrength = $maxstrength + $electionValue[$j+1];                             # sum possible election strengths
+        if ($baseLine{$baseHeading[$j+26]} ne "") {
+            $voterstrength = $voterstrength + $electionValue[$j+1];                     # sum actual voted election strengths
+        }
+    }
+    $voterstrength = (($voterstrength/$maxstrength) * 10);                              # calc voter strength 0-9.99
+    $baseLine{"Score"} = $voterstrength;
+    if ($voterstrength <= 2) {
+        $baseLine{"LikelytoVote"} = "WEAK";                                             # < 2 = weak
+    }
+    if ($voterstrength == 0) {
+        $baseLine{"LikelytoVote"} = "NEVER";                                            # special case strength of 0
+    }
+    if ($baseLine{"Primaries"} > 0) {
+        $baseLine{"LikelytoVote"} = "MODERATE";                                         # Moderate if voted in a primary
+    }
+    if (($voterstrength > 2) and ($voterstrength <= 6)) {
+        $baseLine{"LikelytoVote"} = "MODERATE";
+    }
+    if ($voterstrength > 6) {
+        $baseLine{"LikelytoVote"} = "STRONG";
+    }
+    $voterstrength = int($voterstrength + 0.49);                                         # convert to 0-10 score
+    $baseLine{"Score"} = $voterstrength;
 }
 
 #---------------------------------------------------------------
@@ -919,7 +979,7 @@ sub voterStatsLoad() {
             $HighVoterIDs[0] = 0;                       # indicate data loaded
             for my $z (1 .. 20) {
                 $HighVoterIDs[$z] = $line1Read->[$z];   # load values into array
-                printLine("... $voterStatsHeadings[$z] - High ID = $HighVoterIDs[$z] \n")
+#               printLine("... $voterStatsHeadings[$z] - High ID = $HighVoterIDs[$z] \n")
             }
         } else {
             #
@@ -990,14 +1050,17 @@ sub load_config {
         @CfgHeadings = Spreadsheet::Read::row($bookdata->[1], $j);
         $row = $j;
         if (substr($CfgHeadings[0], 0, 1) eq "#") {
-            next;                                                   # ignore comment lines
+            next;                                                   # ignore comment lines before header row
         }
-        if ($CfgHeadings[0] eq "Election Date") {
+        if ($CfgHeadings[0] eq "Election Date") {                   # Found Heading line, 
+            if (($CfgHeadings[1] ne "Election Type") or ($CfgHeadings[2] ne "Vote Weight")) {
+                die("Invalid Configuration, Headings Not:\n Election Date, Election Type, Vote Weight\n")
+            }
             last;
         }
     }
     if ($row >= $MaxRows) {
-        die ("Invalid Configuration, no Election Dates Defined \n");
+        die ("Invalid Configuration, no \"Election Date\" heading not found \n");
     }
     #
     #  Now load the election date configuration data
@@ -1032,6 +1095,7 @@ sub load_config {
         $yy = sprintf( "%02d", substr( $date[$yx], 2, 2 ) );
         $ElecDate = "$mm/$dd/$yy $CfgRow[1]";                       # build "mm/dd/yy type" string
         push (@ElecDates, $ElecDate);
+        push (@electionValue, $CfgRow[2]);                          # save election voting weights
         if ($edx >= 19 ) {
             last;                                                   # only take in 20 elections
         }
@@ -1042,7 +1106,7 @@ sub load_config {
     }
     printLine ("Configured to use these 20 elections\n");
     for my $j (0 .. 19) {
-        printLine ("$ElecDates[$j] \n");                            # display on console and in print file
+        printLine ("$ElecDates[$j] Voting Weight=$electionValue[$j]\n"); 
         $baseHeading[$j+26] = $ElecDates[$j];                       # copy to active header
     }
     return;
