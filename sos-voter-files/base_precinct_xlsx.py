@@ -11,11 +11,6 @@
 #        rr = # of Republican voters                                                *
 #        dd = # of Democrat voters                                                  *
 #        oo = # voters of other or no party                                         *
-#                                                       
-#        Comnmand Line:
-#        base_precinct_xlsx.py  -s <sos_file> 
-#                               -d <dir to contain files> 
-#                               -p <specific precinct >
 # *********************************************************************************** 
 
 import pandas as pd
@@ -40,7 +35,7 @@ outheader = ["CountyID",
             "Age",
             "LikelyToVote",
             "LastVote",
-            "Score",
+            "Score"
 ]
 base=""                                     # SOS data Dataframe Object (loaded at start of pgm)
 SnglPct=0                                   # Extract single Precinct option if non-null
@@ -141,10 +136,13 @@ def main():
         workbook = xlsxwriter.Workbook(outfile)
         worksheet = workbook.add_worksheet()
 
-        # set workbook properties that we can at the start
+        # set workbook print properties
         worksheet.set_landscape()                                           # set to print in landscape orientation
-        worksheet.set_paper(5)                                              # 5 for legal paper, 1 for Letter Paper
-        worksheet.set_margins(left=0.7, right=0.7, top=0.75, bottom=0.75)   # set margins for printing
+        worksheet.set_paper(5)                                              # 5 for legal paper  (1 for Letter Paper)
+        worksheet.set_margins(left=0.7, right=0.7, top=0.75, bottom=0.75)   # set print margins to Excel "normal"
+        worksheet.fit_to_pages(1, 0)                                        # print 1 page wide and as long as necessary.
+        worksheet.repeat_rows(0)                                            # Repeat the header row on each printed page.
+        worksheet.set_footer('&CPage &P of &N')                             # set printed page footer
 
         # set column widths that are always the same
         worksheet.set_column(0, 0, 8.43)         # CountyID
@@ -155,16 +153,18 @@ def main():
         worksheet.set_column(9, 9, 7.71)         # RegDays
         worksheet.set_column(10, 10, 5.43)       # Age
         worksheet.set_column(11, 11, 11.86)      # LikelyToVote
-        worksheet.set_column(12, 12, 15.5)       # LastVote
+        worksheet.set_column(12, 12, 10)         # LastVote
+        worksheet.set_column(13, 13, 5.43)       # Score
         #
-        #  Columns 2, 3, 4, and 9 set at end once we know longest entry in each
-        #  Set max length for each to 0 here to start out
-        MaxFirst = 0
-        MaxLast = 0
-        MaxMiddle = 0
-        MaxStreet = 0
-
+        #  Columns 2, 3, 4, and 9 width set at end once we know longest entry in each
+        #  Set max length for each to 0 here to start out.
+        MaxFirst = 0                             # col 2 initial width
+        MaxLast = 0                              # col 3 initial width
+        MaxMiddle = 0                            # col 4 initial width
+        MaxStreet = 0                            # col 9 initial width
+        #
         #  Create cell formats we will need to use for this spreadsheet
+        #
         fmt_left = workbook.add_format({'bold': False , 'align': 'left'})
         fmt_center = workbook.add_format({'bold': False , 'align': 'center'})
         fmt_right = workbook.add_format({'bold': False , 'align': 'right'})
@@ -173,13 +173,11 @@ def main():
         # Add a date format for cells with dates
         date_format = workbook.add_format({'num_format': 'mm/dd/yy;@', 'align': 'center'})
 
-        #  Write out formatted header row for extract.xlsx
+        #  Write out formatted header row for this precinct .xlsx file
         x=0
         for item in outheader:
             worksheet.write(0, x, item , header_bold)
             x += 1
-        worksheet.repeat_rows(0)                    # Repeat the header row on each printed page.
-        worksheet.set_footer('&CPage &P of &N')     # set printed page footer
 
         # Now write out extracted base.csv dataframe rows for this precinct.
         #    1. Pick only the base.csv columns we want for extract.xlsx.
@@ -259,7 +257,9 @@ def main():
                 if (outrow[26+i] != ""):
                     LastVote = basehead[26+i]
                     break
-            worksheet.write_string (row, 12, LastVote, fmt_right)       # latest Election Voted In
+            LastVote = LastVote[0:6] + "20" + LastVote[6:8]             # truncate to date only and expand year to 4 digits
+            worksheet.write_string (row, 12, LastVote, date_format)     # latest Election Voted In
+            worksheet.write_number (row, 13, outrow[54], fmt_right)     # Score
         #
         # We've built precinct spreadsheet in memory now do final work and write it out
         #         
