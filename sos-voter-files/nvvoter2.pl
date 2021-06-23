@@ -443,9 +443,12 @@ sub main {
         $UCword =~ s/(\w+)/\u\L$1/g;
         $baseLine{"Middle"} = $UCword;
         $UCword = $csvRowHash{"LastName"};
+
         $UCword =~ s/(\w+)/\u\L$1/g;
         if ( $UCword =~ m/,/ ) {
-            $UCword = "\"" . $UCword . "\"";
+            $UCword =~ s/\s+//g;     # remove all imbedded spaces
+            $UCword =~ s/,/-/g;      # change comma to dash
+            #printLine("lastname2: $UCword \n");
         }
         $baseLine{"Last"} = $UCword;
         my $cclastName = $UCword;
