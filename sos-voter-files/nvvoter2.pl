@@ -1177,7 +1177,12 @@ sub adPoliticalAll() {
     $adPoliticalHeadings = "";
     my @adPoliticalHeadings;
     
-    printLine("My adPolitical file is: $adPoliticalFile.\n");
+    # if no political precinct file then exit
+    if ( ! (-e  $adPoliticalFile)) {
+        printLine("Political Precinct file does not exist: $pctFile \n");
+        return (-1);
+    }
+    printLine("Political Political file is: $adPoliticalFile.\n");
     open( my $adPoliticalFileh, $adPoliticalFile )
       or die "Unable to open INPUT: $adPoliticalFile Reason: $!";
     $adPoliticalHeadings = <$adPoliticalFileh>;
