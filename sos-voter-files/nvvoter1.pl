@@ -212,7 +212,6 @@ sub main {
       or die "Unable to open voter info file: $voterDataFile Reason: $! \n";
     print $voterDataFileh $voterDataHeading;
 
-##
     #
     #  initialize oldest election date we care about
     #
@@ -334,7 +333,7 @@ sub main {
                 }
             }
             #if ( $baddate != 0 ) {
-            #    printLine("Unknown Election Date  $csvRowHash{'electiondate'}  for voter $csvRowHash{'voterid'} \n");
+            #    printLine("Unknown Election Date  $csvRowHash{'electiondate'} for voter $csvRowHash{'voterid'} \n");
             #}
             next;
         }
@@ -658,7 +657,7 @@ sub evaluateVoter {
   # if registered > 8 years   gen >= 0 && gen <= 2 || notelig >= 1    = WEAK
   # if registered > 8 years   gen >= 0 && gen <= 4  and pri == 0      = WEAK
   # if registered > 8 years   gen >= 3 && gen <= 9  and pri >= 0      = MODERATE
-    ## if registered > 8 years   gen >= 6 && gen <= 12 and pri >= 0      = STRONG
+  # if registered > 8 years   gen >= 6 && gen <= 12 and pri >= 0      = STRONG
 
     if ( $votesTotal > 0 ) {
         $voterScore  = ( $generalCount + $primaryCount ) / ($oldestCast) * 10;

@@ -75,10 +75,16 @@ my @voterStatsHeadings;
 my $printFile = "print.txt";
 my $printFileh;
 
+my $adPoliticalFile = "washoe-precincts-20jun.csv";
 my %politicalLine   = ();
 my @adPoliticalHash = ();
 my %adPoliticalHash;
+my $adPoliticalHash;
 my $adPoliticalHeadings = "";
+my $precinctPolitical;
+my @precinctPolitical;
+my %precinctPolitical;
+my $noPoliticalWarn = 0;
 
 my $stats;
 my $emails;
@@ -94,12 +100,14 @@ my $fileCount   = 1;
 my $csvHeadings = "";
 my @csvHeadings;
 my $line1Read    = '';
+my @line1Read;
 my $linesRead    = 0;
 my $linesIncRead = 0;
 my $printData;
 my $linesWritten = 0;
 my $emailAdded   = 0;
 my $statsAdded   = 0;
+ my $voterid = '';
 
 my $skipRecords    = 20;
 my $skippedRecords = 0;
@@ -168,6 +176,12 @@ my @PctPrecinct =();                # Array of precinct numbers
 my @PctCD = ();                     # Array of Congressional Districts
 my @PctAD =();                      # Array of State Assembly Districts
 my @PctSD =();                      # Array of State Senate Districts
+my @PctBoardofEd =();                 # Array of Board of Ed
+my @PctCntyComm =();                 # Array of Board of Ed
+my @PctRwards =();                 # Array of Board of Ed
+my @PctSwards =();                 # Array of Board of Ed
+my @PctSchBdTrust =();                 # Array of Board of Ed
+my @PctSchBdAtLrg =();                 # Array of Board of Ed
 my @PctGenerals =();                # Total general election votes this precinct
 my @PctPrimaries =();               # Total primary election votes this precinct
 my @PctPolls =();                   # Total poll votes this precinct
@@ -198,6 +212,12 @@ my @pctHeading =(                   # Header for precinct.csv
                 "CongDist",         # Congressional District
                 "AssmDist",         # Assembly District
                 "SenDist ",         # Senate District
+                "BrdofEd",          # Board of education District
+                "CntyComm",         # county commission 
+                "Rwards",           # Reno wards
+                "Swards",           # Sparks wards
+                "SchBdTrust",       # Board of education trustes
+                "SchBdAtLrg",       # Board of education at large
                 "Generals",         # # General Election Votes over all Election cycles
                 "Primaries",        # # Primary Election Votes Over All Election Cycles
                 "Polls",            # # Voters Voting at pools Over all Election Cycles
@@ -215,7 +235,7 @@ my @pctHeading =(                   # Header for precinct.csv
                 "% Dem",            # Percentage of registered Voters that are Democrat
                 "Reg AllOther",     # Total Registered Other (All Others including NP, IAP, LP & GP)
                 "Active AllOther",  # All Other Party voters marked ACTIVE
-                "% AllOther",       # Percentage of registered Voters that are All Others including NP, IAP, LP & GP
+                "% AllOther",       # Percentage of reg Voters that are All Others including NP, IAP, LP & GP
                 "#Strong Rep",      # Total Strong Voting Republicans
                 "#Moderate Rep",    # Total Moderate Voting Republicans
                 "#Weak Rep",        # Total Weak Voting Republicans
@@ -244,15 +264,16 @@ my $caemail;
 my $capoints;
 
 my $baseHeading = "";
+my $fixedflds = 32;                         # 32 fixed fields before votedata
 my @baseHeading = (                 # base.csv file header
-    "CountyID",       "StateID",  "Status",   "Precinct", "CongDist",
-    "AssmDist",       "SenDist",  "First",    "Last",
-    "Middle",         "Suffix",   "Phone",    "email",
-    "BirthDate",      "RegDate",  "Party",    "StreetNo",
-    "StreetName",     "Address1", "Address2", "City",
-    "State",          "Zip",      "RegDateOrig",
-    "RegisteredDays", "Age",
-    "11/03/20 general",                         # index to here is 26
+    "CountyID",     "StateID",  "Status",   "Precinct",   "CongDist",
+    "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",   "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
+    "First",        "Last",     "Middle",   "Suffix",     "Phone",    "email",
+    "BirthDate",    "RegDate",  "Party",    "StreetNo",
+    "StreetName",   "Address1", "Address2", "City",
+    "State",        "Zip",      "RegDateOrig",
+    "RegisteredDays", "Age", 
+    "11/03/20 general",                         # index to here is 32
     "06/09/20 primary",                         # these 20 election headers loaded from Config file
     "11/06/18 general",
     "06/12/18 primary",   
@@ -367,6 +388,7 @@ sub main {
     printLine("Voter Base-table file: $baseFile\n");
     open( $baseFileh, ">$baseFile" )
       or die "Unable to open baseFile: $baseFile Reason: $!";
+   
     # Build header for base.csv file record and write it out
     $baseHeading = join( ",", @baseHeading );
     $baseHeading = $baseHeading . "\n";
@@ -376,10 +398,15 @@ sub main {
     printLine("Voter precinct-table file: $pctFile\n");
     open( $pctFileh, ">$pctFile" )
       or die "Unable to open baseFile: $pctFile Reason: $!";
+    
     # Build and write out header for precinct.csv file
     $pctHeading = join( ",", @pctHeading );
     $pctHeading = $pctHeading . "\n";
     print $pctFileh $pctHeading;
+
+    # initialize the precinct-all table
+    printLine ("Build Political District Hash \n");
+    adPoliticalAll(@adPoliticalHash);
 
     # initialize the optional voter email log and the email array if selected
     if ( $voterEmailFile ne "" ) {
@@ -425,13 +452,36 @@ sub main {
         %baseLine = ();
 
         $baseLine{"StateID"} = $csvRowHash{"VoterID"};
-        my $voterid = $csvRowHash{"VoterID"};
+        $voterid = $csvRowHash{"VoterID"};
+
         $baseLine{"CountyID"} = $csvRowHash{"CountyVoterID"};
         $baseLine{"Status"}   = $csvRowHash{"CountyStatus"};
         $baseLine{"Precinct"} = $csvRowHash{"RegisteredPrecinct"};
         $baseLine{"CongDist"} = $csvRowHash{"CongressionalDistrict"};
         $baseLine{'AssmDist'} = $csvRowHash{"AssemblyDistrict"};
         $baseLine{'SenDist'}  = $csvRowHash{"SenateDistrict"};
+       
+        my $precinct = $csvRowHash{"RegisteredPrecinct"};
+
+        @precinctPolitical = $adPoliticalHash{$precinct};
+        
+        my $test = $precinctPolitical[0][1];
+        if (!defined $test || $test eq "") {
+            if ($noPoliticalWarn == 0) {
+                printLine ("******** WARNING!! YOU NEED A CURRENT ADPOLITAL \n");
+                #Districts within Precincts - report in Excel (last updated 9-27-2019)
+                $noPoliticalWarn = 1;
+            }
+        } else {
+            $baseLine{"SenDist"}       = $precinctPolitical[0][1];
+            $baseLine{"AssmDist"}      = $precinctPolitical[0][2];
+            $baseLine{"BrdofEd"}       = $precinctPolitical[0][3];
+            $baseLine{"CntyComm"}      = $precinctPolitical[0][5];
+            $baseLine{"Rwards"}        = $precinctPolitical[0][6];
+            $baseLine{"Swards"}        = $precinctPolitical[0][7];
+            $baseLine{"SchBdTrust"}    = $precinctPolitical[0][8];
+            $baseLine{"SchBdAtLrg"}    = $precinctPolitical[0][9];
+        }
 
         # convert proper names to upper case first then lower
         my $UCword = $csvRowHash{"FirstName"};
@@ -448,7 +498,6 @@ sub main {
         if ( $UCword =~ m/,/ ) {
             $UCword =~ s/\s+//g;     # remove all imbedded spaces
             $UCword =~ s/,/-/g;      # change comma to dash
-            #printLine("lastname2: $UCword \n");
         }
         $baseLine{"Last"} = $UCword;
         my $cclastName = $UCword;
@@ -470,16 +519,15 @@ sub main {
         $baseLine{"State"} = $csvRowHash{"State"};
         $baseLine{"Zip"}   = $csvRowHash{"Zip"};
         $baseLine{"email"} = "";
-
+       
         #
         #  locate and add voter statistics
         $stats = -1;
         $stats = binary_search( \@voterStatsArray, $voterid );
-
         if ( $stats != -1 ) {
             for ( my $i = 1 ; $i <= 29 ; $i++ ) {
                 # copy over 29 fields from voterdata.csv file record
-                $baseLine{ $baseHeading[ $i + 25 ] } =
+                $baseLine{ $baseHeading[ $i + 31 ] } =
                   $voterStatsArray[$stats][$i];
             }
             $statsAdded++;
@@ -488,7 +536,7 @@ sub main {
             # fill in record for registered voter with no vote history
             $noData++;
             for ( my $i = 1 ; $i <= 20 ; $i++ ) {
-                $baseLine[ $i + 26 ] = "";    # blank all 20 election votes
+                $baseLine[ $i + $fixedflds ] = "";    # blank all 20 election votes
             }
             $baseLine{"Generals"}     = 0;
             $baseLine{"Primaries"}    = 0;
@@ -545,7 +593,7 @@ sub main {
         @baseProfile = ();
         foreach (@baseHeading) {
             if ($baseLine{$_} =~ /[\"\',]/) {
-                $baseLine{$_} = "\"".$baseLine{$_}."\"";            # Quote column entry if it contains comma or quote mark
+                $baseLine{$_} = "\"".$baseLine{$_}."\"";            # Quote  entry if contains comma or quote mark
             }
             push( @baseProfile, $baseLine{$_} );                    # build output line in baseProfile
         }
@@ -626,7 +674,6 @@ sub calc_days {
         $age = "";
     }
     $baseLine{"Age"} = $age;
-
     # determine registered days
     # may get dates in two formats: mm/dd/yyyy or yyyy-mm-dd
     if ( substr( $regdate, 4, 1 ) eq '-' ) {
@@ -668,7 +715,7 @@ sub calc_days {
     my $vid = $csvRowHash{"VoterID"};
     for my $j (0 .. 19) {
         if ($rstop == 0) {
-            my $edate = Time::Piece->strptime( substr($baseHeading[$j+26], 0 , 8), "%m/%d/%y" );       # date of this election
+            my $edate = Time::Piece->strptime( substr($baseHeading[$j+$fixedflds], 0 , 8), "%m/%d/%y" );   # election date
             if ($edate < $regTimePiece) {
                 $rstop = $j;                                                            # index+1 to oldest election registered for
             }
@@ -676,7 +723,7 @@ sub calc_days {
             #
             #  See if older vote than registration date
             #
-            if ($baseLine{$baseHeading[$j+26]} ne "") {
+            if ($baseLine{$baseHeading[$j+$fixedflds]} ne "") {
                 $rstop = $j;                                                             # must have re-registered
                 $test = 1;
             }
@@ -690,12 +737,12 @@ sub calc_days {
     my $maxstrength = 0;
     my $voterstrength = 0;                      # init accumulators
     for my $j (0 .. $rstop) {
-        $maxstrength = $maxstrength + $electionValue[$j+1];                             # sum possible election strengths
-        if ($baseLine{$baseHeading[$j+26]} ne "") {
-            $voterstrength = $voterstrength + $electionValue[$j+1];                     # sum actual voted election strengths
+        $maxstrength = $maxstrength + $electionValue[$j+1];               # sum possible election strengths
+        if ($baseLine{$baseHeading[$j+$fixedflds]} ne "") {
+            $voterstrength = $voterstrength + $electionValue[$j+1];       # sum actual voted election strengths
         }
     }
-    $voterstrength = (($voterstrength/$maxstrength) * 10);                              # calc voter strength 0-9.99
+    $voterstrength = (($voterstrength/$maxstrength) * 10);                # calc voter strength 0-9.99
     $baseLine{"Score"} = $voterstrength;
     if ($voterstrength <= 2) {
         $baseLine{"LikelytoVote"} = "WEAK";                                             # < 2 = weak
@@ -770,7 +817,7 @@ sub calc_precinct() {
     if ( $NumPct == 0) {
         add_pct();
         $i=0                                        #1st precinct added, set index
-    }else{  
+    } else {  
         for ( $i = 0 ; $i < ( $NumPct) ; $i++ ) {
             if ($PctPrecinct[$i] == $baseLine{"Precinct"}) {
                 last;
@@ -785,10 +832,10 @@ sub calc_precinct() {
     #
     #  Accumulate the stats from this voter's $baseLine data.
     #
-    $PctGenerals[$i]=$PctGenerals[$i] + $baseLine{"Generals"};
-    $PctPrimaries[$i]=$PctPrimaries[$i] + $baseLine{"Primaries"};
-    $PctPolls[$i]=$PctPolls[$i] + $baseLine{"Polls"};
-    $PctAbsentee[$i]=$PctAbsentee[$i] + $baseLine{"Absentee"};
+    $PctGenerals[$i] = $PctGenerals[$i] + $baseLine{"Generals"};
+    $PctPrimaries[$i] = $PctPrimaries[$i] + $baseLine{"Primaries"};
+    $PctPolls[$i] = $PctPolls[$i] + $baseLine{"Polls"};
+    $PctAbsentee[$i] = $PctAbsentee[$i] + $baseLine{"Absentee"};
     $Active=0;                                      # Assume Inactive Voter
     if ($baseLine{"Status"} eq "Active") {
         $Active = 1;                                # set 1 more Active Voter
@@ -868,11 +915,17 @@ sub calc_precinct() {
 #  Add a new precinct row to the parallel precinct tables
 #
 sub add_pct() {
-    $NumPct=$NumPct+1;                               # add an array row
+    $NumPct = $NumPct+1;                               # add an array row
     push(@PctPrecinct, $baseLine{"Precinct"});       # set precinct number
     push(@PctCD,  $baseLine{"CongDist"});            # set CD for this precinct
     push(@PctAD, $baseLine{'AssmDist'});             # set Assembly District
     push(@PctSD, $baseLine{'SenDist'});              # set Senate District
+    push(@PctBoardofEd, $baseLine{'BrdofEd'});         # set Board of Education
+    push(@PctCntyComm, $baseLine{'CntyComm'});         # set Board of Education
+    push(@PctRwards, $baseLine{'Rwards'});         # set Board of Education
+    push(@PctSwards, $baseLine{'Swards'});         # set Board of Education
+    push(@PctSchBdTrust, $baseLine{'SchBdTrust'});         # set Board of Education
+    push(@PctSchBdAtLrg, $baseLine{'SchBdAtLrg'});         # set Board of Education
     push(@PctGenerals, 0);                           # init rest of row's data to zeroes
     push(@PctPrimaries, 0);
     push(@PctPolls, 0);
@@ -915,7 +968,7 @@ sub write_precinct() {
     @PctSort = sort { $a <=> $b } @PctPrecinct;                             # get precionct numbers in ascending order
     for ( $j = 0 ; $j < $NumPct ; $j++ ) {
         for ( $i = 0 ; $i < $NumPct ; $i++) {
-            if ($PctPrecinct[$i]== $PctSort[$j]) {
+            if ($PctPrecinct[$i] == $PctSort[$j]) {
                 last;                                                       # $i pionts to next ascending precinct
             }
         }
@@ -925,15 +978,18 @@ sub write_precinct() {
         if ($totvote == 0) {
             $totvote = 1;                                                   # avoid divide by zero if no voters in a precinct
         }
-        $pctRep = int((($PctRegRep[$i] / $totvote) * 10000)+.5)/100;        # percent of precinct republican (to 2 decimal places)
+        $pctRep = int((($PctRegRep[$i] / $totvote) * 10000)+.5)/100;        # percent of precinct republican 
         $pctDem = int((($PctRegDem[$i] / $totvote) * 10000)+.5)/100;        # percent of precinct democrat
         $pctAllOther = int((($numAllOther / $totvote) * 10000)+.5)/100;     # percent of precinct All Other Party Registration
         #
         #  There's probably a better way to build the output line, but I don't know
         #  what it is so here goes brute force.
         #
-        $lineout = $PctPrecinct[$i] . "," . $PctCD[$i] . "," . $PctAD[$i] . "," . $PctSD[$i] . "," . $PctGenerals[$i] . ",";
-        $lineout = $lineout . $PctPrimaries[$i] . "," . $PctPolls[$i] . "," . $PctAbsentee[$i] . "," . $PctRegNP[$i] . ",";
+        $lineout = $PctPrecinct[$i] . "," . $PctCD[$i] . "," . $PctAD[$i] . "," . $PctSD[$i] . ","; 
+        $lineout = $lineout . $PctBoardofEd[$i] . "," . $PctCntyComm[$i] . "," . $PctRwards[$i] . ",";
+        $lineout = $lineout . $PctSwards[$i] . "," . $PctSchBdTrust[$i] . "," . $PctSchBdAtLrg [$i] . ",";
+        $lineout = $lineout . $PctGenerals[$i] . "," . $PctPrimaries[$i] . ",";
+        $lineout = $lineout . $PctPolls[$i] . "," . $PctAbsentee[$i] . "," . $PctRegNP[$i] . ",";
         $lineout = $lineout . $PctRegIAP[$i] . "," . $PctRegLP[$i] . "," . $PctRegGP[$i] . ","  . $PctRegOther[$i] . ",";
         $lineout = $lineout . $PctRegRep[$i] . "," . $PctActiveRep[$i] . "," . $pctRep . "%,";
         $lineout = $lineout . $PctRegDem[$i] . "," . $PctActiveDem[$i] . "," . $pctDem . "%,";
@@ -1110,9 +1166,43 @@ sub load_config {
     printLine ("Configured to use these 20 elections\n");
     for my $j (0 .. 19) {
         printLine ("$ElecDates[$j] Voting Weight=$electionValue[$j]\n"); 
-        $baseHeading[$j+26] = $ElecDates[$j];                       # copy to active header
+        $baseHeading[$j+$fixedflds] = $ElecDates[$j];                       # copy to active header
     }
     return;
+}
+#
+# create the precinct to politial correspondence hash
+#
+sub adPoliticalAll() {
+    $adPoliticalHeadings = "";
+    my @adPoliticalHeadings;
+    
+    printLine("My adPolitical file is: $adPoliticalFile.\n");
+    open( my $adPoliticalFileh, $adPoliticalFile )
+      or die "Unable to open INPUT: $adPoliticalFile Reason: $!";
+    $adPoliticalHeadings = <$adPoliticalFileh>;
+    chomp $adPoliticalHeadings;
+    chop $adPoliticalHeadings;
+
+    # headings in an array to modify
+    @adPoliticalHeadings = split( /\s*,\s*/, $adPoliticalHeadings );
+
+    # Build the UID->survey hash
+    while ( $line1Read = <$adPoliticalFileh> ) {
+        chomp $line1Read;
+        #printLine ("line read: $line1Read \n");
+
+        my @values1 = split( /\s*,\s*/, $line1Read, -1 );
+
+        # Create hashes of line for searches
+        @adPoliticalHash{@adPoliticalHeadings} = @values1;
+        my $PRECINCT = $adPoliticalHash{"PRECINCT"};
+        @adPoliticalHash{ $adPoliticalHash{"PRECINCT"} } = \@values1;
+    }
+    #print Dumper(%adPoliticalHash);
+    close $adPoliticalFileh;
+
+    return @adPoliticalHash;
 }
 #---------------------------------------------------------------
 #
