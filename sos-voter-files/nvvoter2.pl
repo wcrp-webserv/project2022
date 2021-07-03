@@ -271,7 +271,7 @@ my @baseHeading = (                 # base.csv file header
     "First",        "Last",     "Middle",   "Suffix",     "Phone",    "email",
     "BirthDate",    "RegDate",  "Party",    "StreetNo",
     "StreetName",   "Address1", "Address2", "City",
-    "State",        "Zip",      "RegDate",
+    "State",        "Zip",   
     "RegisteredDays", "Age", 
     "11/03/20 general",                         # index to here is 32
     "06/09/20 primary",                         # these 20 election headers loaded from Config file
@@ -467,8 +467,8 @@ sub main {
         
         my $test = $precinctPolitical[0][1];
         if (!defined $test || $test eq "") {
-            if ($noPoliticalWarn == 0) {
-                printLine ("******** WARNING!! YOU NEED A CURRENT ADPOLITAL \n");
+            if ($noPoliticalWarn = 0) {
+                printLine ("******** WARNING!! YOU NEED A CURRENT ADPOLITAL PRECINCT FILE \n");
                 #Districts within Precincts - report in Excel (last updated 9-27-2019)
                 $noPoliticalWarn = 1;
             }
@@ -647,7 +647,6 @@ exit;
 sub calc_days {
     my $birthdate = $csvRowHash{"BirthDate"};
     my $regdate   = $csvRowHash{"RegistrationDate"};
-    print (" regdate= $regdate \n");
     my $adjDate;
 
     # determine age
