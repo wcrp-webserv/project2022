@@ -271,7 +271,7 @@ my @baseHeading = (                 # base.csv file header
     "First",        "Last",     "Middle",   "Suffix",     "Phone",    "email",
     "BirthDate",    "RegDate",  "Party",    "StreetNo",
     "StreetName",   "Address1", "Address2", "City",
-    "State",        "Zip",      "RegDateOrig",
+    "State",        "Zip",      "RegDate",
     "RegisteredDays", "Age", 
     "11/03/20 general",                         # index to here is 32
     "06/09/20 primary",                         # these 20 election headers loaded from Config file
@@ -647,6 +647,7 @@ exit;
 sub calc_days {
     my $birthdate = $csvRowHash{"BirthDate"};
     my $regdate   = $csvRowHash{"RegistrationDate"};
+    print (" regdate= $regdate \n");
     my $adjDate;
 
     # determine age
