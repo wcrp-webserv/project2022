@@ -1,5 +1,5 @@
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# wcrp-voter-nvvoter3
+# wcrp-voter-nvvoter2
 #  merge voter rolls with votestat, emails, etc
 #  Produce County base.csv file and precinct.csv file
 #
@@ -264,7 +264,7 @@ my $caemail;
 my $capoints;
 
 my $baseHeading = "";
-my $fixedflds = 32;                         # 32 fixed fields before votedata
+my $fixedflds = 31;                         # 32 fixed fields before votedata
 my @baseHeading = (                 # base.csv file header
     "CountyID",     "StateID",  "Status",   "Precinct",   "CongDist",
     "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",   "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
@@ -273,26 +273,26 @@ my @baseHeading = (                 # base.csv file header
     "StreetName",   "Address1", "Address2", "City",
     "State",        "Zip",   
     "RegisteredDays", "Age", 
-    "11/03/20 general",                         # index to here is 32
-    "06/09/20 primary",                         # these 20 election headers loaded from Config file
-    "11/06/18 general",
-    "06/12/18 primary",   
-    "11/08/16 general",
-    "06/14/16 primary",
-    "11/04/14 general",
-    "06/10/14 primary",
-    "11/06/12 general",
-    "06/12/12 primary",
-    "09/13/11 special",
-    "11/02/10 general",
-    "06/08/10 primary",
-    "11/04/08 general",
-    "08/12/08 primary",
-    "11/07/06 general",
-    "08/15/06 primary",
-    "11/02/04 general",
-    "09/07/04 primary",
-    "06/03/03 special",
+    "11/03/20-G",                         # index to here is 32
+    "06/09/20-P",                         # these 20 election headers loaded from Config file
+    "11/06/18-G",
+    "06/12/18-P",   
+    "11/08/16-G",
+    "06/14/16-P",
+    "11/04/14-G",
+    "06/10/14-P",
+    "11/06/12-G",
+    "06/12/12-P",
+    "09/13/11-S",
+    "11/02/10-G",
+    "06/08/10-P",
+    "11/04/08-G",
+    "08/12/08-P",
+    "11/07/06-G",
+    "08/15/06-P",
+    "11/02/04-G",
+    "09/07/04-P",
+    "06/03/03-S",
     "TotalVotes", "Generals", "Primaries",
     "Polls",  "Absentee", 
     "Early",  "Provisional",
@@ -467,7 +467,7 @@ sub main {
         
         my $test = $precinctPolitical[0][1];
         if (!defined $test || $test eq "") {
-            if ($noPoliticalWarn = 0) {
+            if ($noPoliticalWarn == 0) {
                 printLine ("******** WARNING!! YOU NEED A CURRENT ADPOLITAL PRECINCT FILE \n");
                 #Districts within Precincts - report in Excel (last updated 9-27-2019)
                 $noPoliticalWarn = 1;
@@ -527,8 +527,7 @@ sub main {
         if ( $stats != -1 ) {
             for ( my $i = 1 ; $i <= 29 ; $i++ ) {
                 # copy over 29 fields from voterdata.csv file record
-                $baseLine{ $baseHeading[ $i + 31 ] } =
-                  $voterStatsArray[$stats][$i];
+                $baseLine{ $baseHeading[ $i + $fixedflds-1 ] } = $voterStatsArray[$stats][$i];  ###
             }
             $statsAdded++;
         }
@@ -1152,7 +1151,7 @@ sub load_config {
         $mm = sprintf( "%02d", $date[$mx] );                        # create mm, dd, yyyy as separate strings
         $dd = sprintf( "%02d", $date[$dx] );
         $yy = sprintf( "%02d", substr( $date[$yx], 2, 2 ) );
-        $ElecDate = "$mm/$dd/$yy $CfgRow[1]";                       # build "mm/dd/yy type" string
+        $ElecDate = "$mm/$dd/$yy".'-'."$CfgRow[1]";    
         push (@ElecDates, $ElecDate);
         push (@electionValue, $CfgRow[2]);                          # save election voting weights
         if ($edx >= 19 ) {
@@ -1166,7 +1165,7 @@ sub load_config {
     printLine ("Configured to use these 20 elections\n");
     for my $j (0 .. 19) {
         printLine ("$ElecDates[$j] Voting Weight=$electionValue[$j]\n"); 
-        $baseHeading[$j+$fixedflds] = $ElecDates[$j];                       # copy to active header
+        $baseHeading[$j+$fixedflds] = $ElecDates[$j];            
     }
     return;
 }
