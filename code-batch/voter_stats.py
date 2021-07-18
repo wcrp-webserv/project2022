@@ -9,7 +9,7 @@
 #----------------------------------------------------------------------------------- 
 import numpy as np
 import argparse
-import errno
+import errno, os
 from csv  import reader
 from csv import DictReader
 
@@ -35,7 +35,7 @@ othvote = 0
 nonpvote = 0
 iapvote = 0
 vote = ""
-voted = ['BR', 'EV', 'MB', 'PP', 'PV']
+voted = ['BR', 'FW', 'EV', 'MB', 'PP'] #, 'PV']
 
 
 #
@@ -82,7 +82,9 @@ def process_row(row):
     global vote
 
     vote = str(row['11/03/20 general'])
-    
+    voteid = str(row['StateID'])
+    #print (" vote= {} {} \n".format(voteid, vote))
+
     if (row['Party'] == 'Democrat'):
         democrats+=1
         if vote in voted:
@@ -98,7 +100,7 @@ def process_row(row):
         nonps+=1
         if vote in voted:
             anyvote+=1
-            nonpvote = nonpvote+1
+            nonpvote+=1
     elif (row['Party'] == 'Independent American Party'):
         iaps+=1
         if vote in voted:
@@ -121,10 +123,11 @@ def main():
 
     rownum = 0
     allvoters = 0
-
+    cwd = os.getcwd()
+    os.chdir(cwd)
 
     # read data source 
-    with open(analyze_file, mode='r', encoding='ISO-8859-1') as csv_file:
+    with open(analyze_file, mode='r') as csv_file:  #'encoding='ISO-8859-1
         csv_reader = DictReader(csv_file)
         print ("opened file: {}".format(analyze_file))
         #voted = ['BR', 'EV', 'MB', 'PP', 'PV']
