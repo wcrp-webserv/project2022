@@ -266,9 +266,9 @@ my $capoints;
 my $baseHeading = "";
 my $fixedflds = 31;                         # 32 fixed fields before votedata
 my @baseHeading = (                 # base.csv file header
-    "CountyID",     "StateID",  "Status",   "Precinct",   "CongDist",
-    "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",   "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
-    "First",        "Last",     "Middle",   "Suffix",     "Phone",    "email",
+    "CountyID",     "StateID",  "Status",   "County",    "Precinct", "CongDist",
+    "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",  "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
+    "First",        "Last",     "Middle",   "Suffix",    "Phone",    "email",
     "BirthDate",    "RegDate",  "Party",    "StreetNo",
     "StreetName",   "Address1", "Address2", "City",
     "State",        "Zip",   
@@ -456,6 +456,7 @@ sub main {
 
         $baseLine{"CountyID"} = $csvRowHash{"CountyVoterID"};
         $baseLine{"Status"}   = $csvRowHash{"CountyStatus"};
+        $baseLine{"County"} = $csvRowHash{"County"};
         $baseLine{"Precinct"} = $csvRowHash{"RegisteredPrecinct"};
         $baseLine{"CongDist"} = $csvRowHash{"CongressionalDistrict"};
         $baseLine{'AssmDist'} = $csvRowHash{"AssemblyDistrict"};
