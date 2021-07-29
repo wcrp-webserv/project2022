@@ -1179,7 +1179,7 @@ sub adPoliticalAll() {
     
     # if no political precinct file then exit
     if ( ! (-e  $adPoliticalFile)) {
-        printLine("Political Precinct file does not exist: $pctFile \n");
+        printLine("Political Precinct file does not exist: $adPoliticalFile \n");
         return (-1);
     }
     printLine("Political Political file is: $adPoliticalFile.\n");
