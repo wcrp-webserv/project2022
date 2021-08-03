@@ -4,7 +4,7 @@
 #  Input is one or more i360 survey file(s) and optional question text file         *
 #        may be in either .csv or .xlsx format                                      *
 #                                                                                   *
-#  Output is a text report of the survey and analysis thereof                       *
+#  Output is a text report of the survey and analysis thereof  jes                  *
 #                                                                                   *
 # *********************************************************************************** 
 
