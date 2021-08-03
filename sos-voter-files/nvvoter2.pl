@@ -7,7 +7,7 @@
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 use strict;
 use warnings;
-$| = 1;
+$| = 1;                                 # force STDOUT to flush on newline
 use File::Basename;
 use DBI;
 use Data::Dumper;
@@ -50,6 +50,11 @@ my @baseLine;
 my $baseLine;
 my @baseProfile;
 
+my $debugFile = "debug.txt";
+my $debugFileh;
+my $debug = 0;
+my @duplicates;
+
 # list of email addresses to add
 my $voterEmailFile = "";
 my $voterEmailFileh;
@@ -75,7 +80,7 @@ my @voterStatsHeadings;
 my $printFile = "print.txt";
 my $printFileh;
 
-my $adPoliticalFile = "washoe-precincts-20jun.csv";
+my $adPoliticalFile = "pctxref.csv";
 my %politicalLine   = ();
 my @adPoliticalHash = ();
 my %adPoliticalHash;
@@ -83,15 +88,14 @@ my $adPoliticalHash;
 my $adPoliticalHeadings = "";
 my $precinctPolitical;
 my @precinctPolitical;
-my %precinctPolitical;
 my $noPoliticalWarn = 0;
+my $Noxref = 0;
 
 my $stats;
 my $emails;
 
 my @electionValue = ();
 my $regTimePiece = 0;
-my $debug = 0;
 
 my $helpReq     = 0;
 my $maxLines    = "250";
@@ -264,7 +268,7 @@ my $caemail;
 my $capoints;
 
 my $baseHeading = "";
-my $fixedflds = 31;                         # 32 fixed fields before votedata
+my $fixedflds = 32;                         # 32 fixed fields before votedata
 my @baseHeading = (                 # base.csv file header
     "CountyID",     "StateID",  "Status",   "County",    "Precinct", "CongDist",
     "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",  "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
@@ -331,16 +335,15 @@ sub main {
     # Parse any parameters
     GetOptions(
         'infile=s'    => \$inputFile,
-        'outfile=s'    => \$baseFile,
+        'outfile=s'   => \$baseFile,
         'pctfile=s'   => \$pctFile,
-        'config=s'   => \$CfgFile,
+        'config=s'    => \$CfgFile,
         'statfile=s'  => \$voterStatsFile,
         'emailfile=s' => \$voterEmailFile,
-        'skip=i'      => \$skipRecords,
-        'lines=s'     => \$maxLines,
-        'votecycle'   => \$voteCycle,
+        'xref=s'      => \$adPoliticalFile,
         'help!'       => \$helpReq,
-    ) or die "Incorrect usage!\n";
+        'h'           => \$helpReq
+    ) or $helpReq = 1;
 
     my $csv = Text::CSV->new(
         {
@@ -353,8 +356,14 @@ sub main {
     );
 
     if ($helpReq) {
-        print "Come on, it's really not that hard.\n";
-        die;
+        print ("perl nvvoter2 -infile <file> -outfile <file> -pctfile<file> -statfile <file> -xref <file> -emailfile <file>\n");
+        print ("    -infile = Secretary Of State ElgbVtr file\n");
+        print ("    -outfile = compiled \"base\" file - default is base.csv\n");
+        print ("    -pctfile = precinct summary file - default is precinct.csv\n");
+        print ("    -statfile = input by voter vote records from NVVOTER1 - default is voterdata-s.csv\n");
+        print ("    -xref = Precinct to political district cross reference file - default is pctxref.csv\n");
+        print ("    -emailfile = optional file of email addresses to add to base.csv on name match\n");
+        die "\n";
     }
 
     load_config();                       # load configuration spreadsheet
@@ -420,7 +429,7 @@ sub main {
 
     # if voter stats are available load the hash table
     if ( $voterStatsFile ne "" ) {
-        printLine("Voter Stats file: $voterStatsFile\n");
+        printLine("Vote History file: $voterStatsFile\n");
         voterStatsLoad(@voterStatsArray);
     }
 
@@ -437,8 +446,8 @@ sub main {
     while ( $line1Read = $csv->getline($inputFileh) ) {
         $linesRead++;
         $linesIncRead++;
-        if ( $linesIncRead == 10000 ) {
-            printLine("$linesRead lines processed\r");
+        if ( $linesIncRead > 4999 ) {
+            printLine("$linesRead voter records read\r");
             $linesIncRead = 0;
         }
 
@@ -462,28 +471,62 @@ sub main {
         $baseLine{'AssmDist'} = $csvRowHash{"AssemblyDistrict"};
         $baseLine{'SenDist'}  = $csvRowHash{"SenateDistrict"};
        
-        my $precinct = $csvRowHash{"RegisteredPrecinct"};
-
-        @precinctPolitical = $adPoliticalHash{$precinct};
-        
-        my $test = $precinctPolitical[0][1];
-        if (!defined $test || $test eq "") {
-            if ($noPoliticalWarn == 0) {
-                printLine ("******** WARNING!! YOU NEED A CURRENT ADPOLITAL PRECINCT FILE \n");
-                #Districts within Precincts - report in Excel (last updated 9-27-2019)
-                $noPoliticalWarn = 1;
+        my $precinct = $csvRowHash{"RegisteredPrecinct"};           # get this voter's precinct
+        if ($Noxref == 0) {
+            $precinctPolitical = $adPoliticalHash{$precinct};           # fetch XREF array reference for this precinct
+            my $test = $precinctPolitical->[0];                         # see if an XREF entry was found
+            if (!defined $test || $test eq "") {
+                if ($noPoliticalWarn == 0) {
+                    #
+                    #  No XREF entry for this precinct
+                    #
+                    printLine ("******** WARNING!! YOU NEED TO UPDATE PRECINCT XREF FILE \n");
+                    printLine ("******** At least Precinct $precinct not in precinct xref file\n");
+                    printLine ("******** File debug.txt lists all missing precincts.\n");
+                    #
+                    #  Open debug.txt to list missing precincts
+                    #
+                    $debug = 1;
+                    open($debugFileh, ">", $debugFile )
+                    or $debug = 0;                                  # disable if for some reason doesn't open
+                    if ($debug == 0) {
+                        printLine (">>>>>>>> Could Not Create debug.txt file\n");
+                    }
+                    $noPoliticalWarn = 1;                           # don't warn again of missing precincts on console
+                }
+                if ($debug != 0) {
+                    #
+                    #  List all missing precincts in debug.txt, but not duplicates (same precinct missing in more than one voter record)
+                    #
+                    my $dup = 0;
+                    for ( my $i = 0 ; $i <= $#duplicates ; $i++ ) {
+                        if ( $precinct == $duplicates[$i]) {
+                            $dup = 1;                                       # already listed, skip listing it again
+                            last;
+                        }
+                    }
+                    if ($dup == 0) {
+                        #
+                        #  List and remember a new missing precinct in debug.txt
+                        #
+                        push @duplicates, $precinct;                        # add to duplicate missing precinct detection list
+                        print $debugFileh ("Precinct $precinct not in precinct xref file\n");
+                    }
+                }
+            } else {
+                #
+                #  Found an XREF record for this precinct, Fill in the political districts from the XREF file
+                #
+                $baseLine{"SenDist"}       = "SD" . $precinctPolitical->[1];
+                $baseLine{"AssmDist"}      = "AD" . $precinctPolitical->[2];
+                $baseLine{"BrdofEd"}       = $precinctPolitical->[3];
+                $baseLine{"CntyComm"}      = $precinctPolitical->[5];
+                $baseLine{"Rwards"}        = $precinctPolitical->[6];
+                $baseLine{"Swards"}        = $precinctPolitical->[7];
+                $baseLine{"SchBdTrust"}    = $precinctPolitical->[8];
+                $baseLine{"SchBdAtLrg"}    = $precinctPolitical->[9];
             }
-        } else {
-            $baseLine{"SenDist"}       = $precinctPolitical[0][1];
-            $baseLine{"AssmDist"}      = $precinctPolitical[0][2];
-            $baseLine{"BrdofEd"}       = $precinctPolitical[0][3];
-            $baseLine{"CntyComm"}      = $precinctPolitical[0][5];
-            $baseLine{"Rwards"}        = $precinctPolitical[0][6];
-            $baseLine{"Swards"}        = $precinctPolitical[0][7];
-            $baseLine{"SchBdTrust"}    = $precinctPolitical[0][8];
-            $baseLine{"SchBdAtLrg"}    = $precinctPolitical[0][9];
         }
-
         # convert proper names to upper case first then lower
         my $UCword = $csvRowHash{"FirstName"};
         $UCword =~ s/(\w+)/\u\L$1/g;
@@ -635,6 +678,9 @@ close($inputFileh);
 close($baseFileh);
 close($pctFileh);
 close($printFileh);
+if ($debugFileh != 0) {
+    close($debugFileh);
+}
 if ( $voterEmailFile ne "" ) {
     close($emailLogFileh);
 }
@@ -1179,10 +1225,12 @@ sub adPoliticalAll() {
     
     # if no political precinct file then exit
     if ( ! (-e  $adPoliticalFile)) {
-        printLine("Political Precinct file does not exist: $adPoliticalFile \n");
+        printLine("******** Precinct XREF file $adPoliticalFile  does not exist.\n");
+        printLine("******** Output Base File Will Only Contain State Races, Local Races Will Be Blank!\n");
+        $Noxref = 1;
         return (-1);
     }
-    printLine("Political Political file is: $adPoliticalFile.\n");
+    printLine("Precinct XREF file is: $adPoliticalFile.\n");
     open( my $adPoliticalFileh, $adPoliticalFile )
       or die "Unable to open INPUT: $adPoliticalFile Reason: $!";
     $adPoliticalHeadings = <$adPoliticalFileh>;
@@ -1195,16 +1243,16 @@ sub adPoliticalAll() {
     # Build the UID->survey hash
     while ( $line1Read = <$adPoliticalFileh> ) {
         chomp $line1Read;
-        #printLine ("line read: $line1Read \n");
+        if ($line1Read eq ""){
+            next;
+        }
+#        printLine ("line read: \"$line1Read\" \n");
 
         my @values1 = split( /\s*,\s*/, $line1Read, -1 );
-
-        # Create hashes of line for searches
-        @adPoliticalHash{@adPoliticalHeadings} = @values1;
-        my $PRECINCT = $adPoliticalHash{"PRECINCT"};
-        @adPoliticalHash{ $adPoliticalHash{"PRECINCT"} } = \@values1;
+        my $PRECINCT = $values1[0];                         # get precinct
+        $adPoliticalHash{$PRECINCT} = \@values1;            # add to hash by precinct of xref data arrays
     }
-    #print Dumper(%adPoliticalHash);
+
     close $adPoliticalFileh;
 
     return @adPoliticalHash;
