@@ -1022,11 +1022,11 @@ def main():
                 flag = 1
             if(flag == 0):
                 if(temp[0:14] == "surveyresponse"):
-                    SurveyFiles.append(f"{dir}\{allfiles[x]}")          # This file is selected add to survey file name list
+                    SurveyFiles.append(f"{dir}/{allfiles[x]}")          # This file is selected add to survey file name list
                 continue                                                # ignore non-selected file
             else:  
                 if(qualify_file(temp) == 0):                            # screen any command line selection criteria
-                    SurveyFiles.append(f"{dir}\{allfiles[x]}")          # This file is selected add to survey file name list
+                    SurveyFiles.append(f"{dir}/{allfiles[x]}")          # This file is selected add to survey file name list
     #
     #####################################################################################
     #
