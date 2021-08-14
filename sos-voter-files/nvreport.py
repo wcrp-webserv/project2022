@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import sys, getopt, os
 from os import listdir
+import shutil, fnmatch
 from os.path import isfile, join
 import xlsxwriter
 import calendar
@@ -55,9 +56,11 @@ DefAns2 = ("Conservative","Moderate Conservative","Moderate","Moderate Progressi
 ###################################################################################################################
 
 svyfile  = ""                                                                   #  Input: survey file ( -infile)
+svyfile2  = ""                                                                   #  Input: survey file ( -infile)
 svydir = ""                                                                     #  Input: directory of survey files (-survey)
 qfile = ""                                                                      #  Input: question text file (-qfile)
-outfile = ""                                                                    # Output: Survey Report file (-outfile)
+datadir = ""                                                                     # Output: Survey Report directory (-datadir)
+rptfile = ""                                                                    # Output: Survey Report file (-rptfile)
 outfh = ""                                                                      # Output: Survey Report file handle
 
 printFile = "print.txt"                                                         # Console Log File
@@ -161,9 +164,13 @@ def printLine (printData):
     return
 
 def printhelp():
-    print ("py nvreport.py -infile <filename> -outfile<filename> -survey <path> -select param,param,...")
+    print ("py nvreport.py -infile <filename> -datadir <directory> -rptfile<filename> -survey <path> -select param,param,...")
     print ("    -infile <filename> reports from a single file. Overrides -survey option if both present.\n")
     print ("    -survey <path> reports from survey files in the specified directory. ")
+    print ("           Note: If -infile=i360 then the current directory  ")
+    print ("                 for a name of SurveyResponse* and that file will be renamed to the name   ")
+    print ("                 of the survey specified in the column 'Title' and the   ")
+    print ("                 file is moved to the location specified by <-datadir>/surveys/ ")
     print ("           Note: In the absence of either -infile or -survey the current working directory")
     print ("           will be used as if a -survey <cwd> were specified.\n")
     print ("    -select specifies which files in the survey directory will be selected. ")
@@ -187,7 +194,8 @@ def printhelp():
     print ("              Note: parameters can be combined in any order. Example:")
     print ("                    -pers C,M,MC\n")
     print ("    -qfile <filename> text file of question text to substitute for the I360 text.\n")
-    print ("    -outfile <filename> specifies the output report file.  Default is report.txt")
+    print ("    -datadir <directory> specifies the output report directory.  Default is null")
+    print ("    -rptfile <filename> specifies the output report file.  Default is report.txt")
     return
 #
 #============================================================================================================
@@ -198,7 +206,7 @@ def printhelp():
 #                                                      *
 #*******************************************************
 def args(argv):
-    global outfile, svydir, svyfile, qfile                          # File/directory parameters
+    global datadir, rptfile, svydir, svyfile, qfile                          # File/directory parameters
     global NumPersOpts, PersOpts, DefAns2                           # persuation parameters
     global SelPhase, SelDist, SelParty, SelLikely                   # selection parameters
 
@@ -221,16 +229,31 @@ def args(argv):
         if opt in ['-h', '-help', '-?']:
             printhelp()
             exit(2)
-        elif opt == "-outfile":
-            outfile = arg
+        elif opt == "-datadir":
+            datadir = arg
+        elif opt == "-rptfile":
+            rptfile = arg
         elif opt == "-infile":
-            svyfile = arg
-            if(svyfile[2] != ":"):
+            svyfile = arg           
+            if (svyfile == 'i360'):
+                Dir = os.getcwd()
+                #svyfile = os.path.join(Dir)
+                #svyfile = svyfile + "/SurveyResponse*"       # form fully qualified survey file name
+                for sfile in os.listdir('.'):
+                    if fnmatch.fnmatch(sfile, 'SurveyResponse*'):
+                        svyfile = sfile
+                        print ( svyfile + '\n')
+                        break
+                if (os.path.isfile(svyfile) == False):
+                    printLine (f"Survey File '{svyfile}' does not exist...aborting\n")
+                    exit(2)
+            elif(svyfile[2] != ":"):
                 Dir = os.getcwd()                                   # get our current working directory
                 svyfile = os.path.join(Dir,svyfile)                 # form fully qualified survey file name
                 if (os.path.isfile(svyfile) == False):
                     printLine (f"Survey File '{svyfile}' does not exist...aborting\n")
                     exit(2)
+
         elif opt == "-survey":
             svydir = arg
         elif opt == "-qfile":
@@ -319,8 +342,8 @@ def args(argv):
                 printLine(f"Invalid -pers parameter \"{opts[i]}\" ignored! \n")
         printLine(f"{temp}")
     
-    if (outfile == ""):
-        outfile = "report.txt"
+    if (rptfile == ""):
+        rptfile = "report.txt"
     return
 #
 #=====================================================================================================
@@ -956,7 +979,7 @@ def main():
     ##############################################################################
     #  Define all of the global tables and variables main program needs access to
     #
-    global outfile, svyfile, svydir, qfile, sframe, printFileh, outfh
+    global datadir, rptfile, svyfile, svydir, qfile, sframe, printFileh, outfh
     global Headings, NumSvyRows, NumSvyCols, SurveyTitle, DateCol
     global VolFirstCol, VolLastCol, PhoneCol, ResponseCol
     global SurveyFiles, ResponseCode, ProgName
@@ -1296,16 +1319,26 @@ def main():
             printLine (f"... {numsub} questions had text substituted...")
     #
     #  Create the output report file
+    #  If created from a SurveyRespone file directly, then output the report to a file named from 
+    #    the Report Title and placed in the directory specified by 'datadir'/reports 
+    #    also, rename the SurveyResponse file to a file named from Report Title and move it
+    #      the directory specified by 'datadir'/surveys
+    #  else create the report file in the current working directory with the name report.txt
     #
     title = sframe.iloc[0]["Title"]
-    if (outfile == ""):
-        outfile = "perf-" + title + ".txt"                      # set default report file name
-    if(outfile[2] != ":"):
-        Dir = os.getcwd()                                       # Output to our current working directory
-        outfile = os.path.join(Dir,outfile)                     # form full temp file name
-    printLine (f"... Generating Reports to file {outfile}")
+    if(rptfile[2] != ":"):  Dir = os.getcwd()                                       # Output to our current working directory
+    rptfile = os.path.join(Dir,rptfile)                     # form full temp file name
+ 
+    if ("SurveyResponse" in rptfile):
+        yyyymmdd = datetime.today().date().isoformat().replace("-", "")      # set automatic report file name
+        rptfile = datadir + "reports/" + title + "-" + yyyymmdd + ".txt"      # set default report file name
+        # now move the survey file to the 'datadir'/surveys directory with a new name
+        svyfile2 = datadir + "surveys/" + title + "-" + yyyymmdd + ".xlsx"    # rename and move survey file
+        shutil.move(svyfile, svyfile2)
+        
+    printLine (f"... Generating Reports to file {rptfile}")
     try:
-        outfh = open(outfile,"w",encoding='utf-8')
+        outfh = open(rptfile,"w",encoding='utf-8')
     except IOError as e:
         print ("Cannot open report file, error({0}): {1}".format(e.errno, e.strerror))
         exit(2)
