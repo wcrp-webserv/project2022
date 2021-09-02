@@ -46,17 +46,29 @@ subdir=""                                   # output subdirectory
 #  Routine to get command line arguments (if any)      *
 #                                                      *
 #*******************************************************
+def printhelp():
+    print('base_precinct_xlsx.py -s <Sosfile> -p <precint> -d <outdir>')
+    print('     -s <Sosfile>  = Secretary of State base file (from nvvoter.py)')
+    print('                     default is base.csv in current directory.')
+    print('     -p <precinct> = single precinct to extract.')
+    print('                     default is all precincts in base file.')
+    print('     -d <outdir>   = directory to put extracted files into.')
+    print('                     default is current working directory.')
+    print
+    return(0)
+#
+#
 def args(argv):
     global Sosfile, SnglPct, subdir
     print("")
     try:
         opts, args = getopt.getopt(argv,"h:s:p:d:",["help", "sosfile=", "precinct=", "--dir"])
     except getopt.GetoptError:
-        print('base_precinct_xlsx.py -s <Sosfile> -p <precint> -d <outdir>')
+        printhelp()
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print('base_precinct_xlsx.py -s <Sosfile> -p <precint#> -d <outdir>')
+            printhelp()
             sys.exit()
         elif opt in ("-s", "--sosfile"):
             Sosfile = arg
@@ -64,8 +76,6 @@ def args(argv):
             subdir=arg
         elif opt in ("-p", "--precinct"):
             SnglPct = arg
-            if (len(SnglPct) < 5):
-                SnglPct = SnglPct + "00"
             print(f"Extracting single precinct {SnglPct}")
     print("Input SOS data file is " + Sosfile)
 
@@ -100,10 +110,60 @@ def main():
     print (f"{Sosfile} load took {int((EndTime - StartTime)*10)/10} seconds\n")
     baserows=len(base.index)
     #
-    # get lists of columnn labels from the input file
+    # get lists of column labels from the input file
+    # and calculate indexes for needed columns
     #
     basehead=list(base.columns)                     # get SOS data column labels
-     #
+    hits = 0                                        # say no column title found yet
+    x = 0                                           # index to 1st column
+    for item in basehead:
+        if (item == "CountyID"):
+            CountyId = x
+            hits += 1
+        if (item == "First"):
+            First = x
+            hits += 1
+        if (item == "Middle"):
+            Middle = x
+            hits += 1
+        if (item == "Last"):
+            Last = x
+            hits += 1
+        if (item == "Phone"):
+            PhoneNum = x
+            hits += 1
+        if (item == "RegDate"):
+            RegDate = x
+            hits += 1
+        if (item == "Party"):
+            RegParty = x
+            hits += 1
+        if (item == "StreetNo"):
+            StreetNo = x
+            hits += 1
+        if (item == "StreetName"):
+            Streetname = x
+            hits += 1
+        if (item == "RegisteredDays"):
+            RegDays = x
+            hits += 1
+        if (item == "Age"):
+            VAge = x
+            Cycle = VAge+1                       # offset to 1st election cycle
+            Elections = x+1
+            hits += 1
+        if (item == "LikelytoVote"):
+            LikelytoVote = x
+            hits += 1
+        if (item == "Score"):
+            Score = x
+            hits += 1
+        x += 1
+    if (hits != 13):
+        print (f"SOS data file format error - only found {hits} required columns")
+        print(basehead)
+        exit (2)
+    #
     #  Create a list of precinct #s in pctlist
     #
     pctlist = []
@@ -111,6 +171,8 @@ def main():
         pctlist.append(int(SnglPct))                        # extracting only 1 precinct
     else:
         for item in base["Precinct"]:                       # build list of all precincts in base.csv to extract
+            if (item == 0):
+                continue                                    # skip special date of SOS data record
             if item not in pctlist:
                 pctlist.append(item)                        # add precinct to list
         pctlist.sort()                                      # sort list in ascending order
@@ -195,71 +257,72 @@ def main():
                 if (item != item):                                      # Make any NAN cells null strings
                     outrow[i] = ""
                 i += 1
-            party = outrow[15]                                          # Fetch Party of this voter
+            party = outrow[RegParty]                                    # Fetch Party of this voter
             if (party == "Democrat"):
                 numDem=numDem + 1                                       # Add to number of Democrat Voters
                 continue                                                # don't write out record
-            row = row+1                                                   # write to next row
-            worksheet.write_number (row, 0, outrow[0], fmt_right)       # CountyID
-            worksheet.write_string (row, 1, outrow[7], fmt_left)        # First
-            L = len(outrow[7])
+            row = row+1                                                 # write to next row
+            worksheet.write_number (row, 0, outrow[CountyId], fmt_right)  # CountyID
+            worksheet.write_string (row, 1, outrow[First], fmt_left)    # First
+            L = len(outrow[First])
             if (L > MaxFirst):
                 MaxFirst = L                                            # longest so far
-            worksheet.write_string (row, 2, outrow[8], fmt_left)        # Last
-            L = len(outrow[8])
+            worksheet.write_string (row, 2, outrow[Last], fmt_left)     # Last
+            L = len(outrow[Last])
             if (L > MaxLast):
                 MaxLast = L                                             # longest so far
-            worksheet.write_string (row, 3, outrow[9], fmt_left)        # Middle
-            L = len(outrow[9])
+            worksheet.write_string (row, 3, outrow[Middle], fmt_left)   # Middle
+            L = len(outrow[Middle])
             if (L > MaxMiddle):
                 MaxMiddle = L                                           # longest so far
-            phone=outrow[11]
+            phone=outrow[PhoneNum]
             if (phone.isdigit()):
                 worksheet.write_number (row, 4, int(phone), fmt_right)  # Phone is numeric
             elif (phone == ""):
                 worksheet.write_blank(row, 4, None)                     # No Phone Number
             else:
                 worksheet.write (row, 4, phone, fmt_right)              # Phone not numeric
-            worksheet.write (row, 5, outrow[14], date_format)           # Regdate
+            worksheet.write (row, 5, outrow[RegDate], date_format)      # Regdate
             worksheet.write_string (row, 6, party, fmt_left)            # Party
             if (party == "Republican"):
                 numRep=numRep + 1                                       # Add to # Republican Voters
             else:
                 numOth = numOth + 1                                     # Add to number of "Other Party" Voters
-            snum = outrow[16]
+            snum = outrow[StreetNo]
             if (snum == ""):
                 worksheet.write_blank(row, 7, None)                     # Street Number is blank
             else:
                 worksheet.write_number (row, 7, int(snum), fmt_right)   # Street Number is numeric
-            SName = outrow[17]
+            SName = outrow[Streetname]
             if (SName == ""):
                 worksheet.write_blank(row, 8, None)                     # Street Name Blank
             else:
-                worksheet.write (row, 8, outrow[17], fmt_left)          # Street Name
-            L = len(outrow[17])
+                worksheet.write (row, 8, outrow[Streetname], fmt_left)  # Street Name
+            L = len(outrow[Streetname])
             if (L > MaxStreet):
                 MaxStreet = L                                           # longest so far
-            Days = outrow[24]
+            Days = outrow[RegDays]
             if (Days == ""):
                 print("RegDays Blank in Row " + str(row+1) + " Precinct " + str(PctNum))
                 worksheet.write_blank(row, 9, None)
             else:
-                worksheet.write_number (row, 9, outrow[24], fmt_right)     # Reg Days
-            Age = outrow[25]
+                worksheet.write_number (row, 9, outrow[RegDays], fmt_right)     # Reg Days
+            Age = outrow[VAge]
             if (Age == ""):
                 print("Age Blank in Row " + str(row+1) + " Precinct " + str(PctNum))
                 worksheet.write_blank(row, 10, None)
             else:
                 worksheet.write_number (row, 10, Age, fmt_right)        # Age
-            worksheet.write_string (row, 11, outrow[53], fmt_left)      # Likely To Vote
+            worksheet.write_string (row, 11, outrow[LikelytoVote], fmt_left)      # Likely To Vote
             LastVote = "Never"
             for i in range(20):
-                if (outrow[26+i] != ""):
-                    LastVote = basehead[26+i]
+                if (outrow[Elections+i] != ""):
+                    LastVote = basehead[Cycle+i]
                     break
-            LastVote = LastVote[0:6] + "20" + LastVote[6:8]             # truncate to date only and expand year to 4 digits
+            if (LastVote != "Never"):
+                LastVote = LastVote[0:6] + "20" + LastVote[6:8]             # truncate to date only and expand year to 4 digits
             worksheet.write_string (row, 12, LastVote, date_format)     # latest Election Voted In
-            worksheet.write_number (row, 13, outrow[54], fmt_right)     # Score
+            worksheet.write_number (row, 13, outrow[Score], fmt_right)  # Score
         #
         # We've built precinct spreadsheet in memory now do final work and write it out
         #         
@@ -283,7 +346,13 @@ def main():
     #    exit()                                              # >>>>>>   Debug exit after 1 precinct  <<<<           
     print("\nPrecinct .xlsx File(s) Extracted.")
     EndTime = time.time()
-    print (f"Total Elapsed time is {int((EndTime - StartTime)*10)/10} seconds.\n")
+    TotSec = int((EndTime - StartTime)*10)/10
+    TotMin = int (TotSec/60)
+    if (TotMin > 0):
+        TotSec = int((TotSec -(TotMin*60))*10)/10
+        print(f"Total Elapsed time is {TotMin} Minutes {TotSec} seconds.\n")
+    else:
+        print(f"Total Elapsed time is {TotSec} seconds.\n")
     exit(0)
 
 
