@@ -1,10 +1,16 @@
 #************************************************************************************
 #                                 nvvoter1.py                                       *
 #                                                                                   *
-#  Input:  Secretary of State Vote History .csv File (one vote per row)             *
-#          Configuration Spreadsheet nvconfig.xlsx                                  *
+#  Input: Secretary of State Vote History .csv File (one vote per row)              *
+#  Input: Secretary of State Voter Registration .csv file (one voter per row)       *
+#  Input: Election Configuration Spreadsheet nvconfig.xlsx                          *
+#  Input: (optional) Cross Reference file supplying county and city voting          *
+#         district information for each precinct                                    *
+#  Input: (optional) a file with email addresses to merge into base.csv file for    *
+#         selected voters                                                           *
 #                                                                                   *
-#  Output is a CSV file by voter of their voting history in selected elections      *
+#  Output: BASE.CSV file by voter of their voting history in selected elections     *
+#  Output: PRECINCT.CSV file a by precinct summary of voter information             *
 #                                                                                   *
 # *********************************************************************************** 
 
@@ -47,42 +53,40 @@ veframe = []
 voterEmailArray = []
 voterEmailHeadings = []
 emailAdded = 0
+#
+#  Data for optional email address logging file
+#
+emailProfile = 0
+emailHeading = ""
+emailHeading = ["VoterID", "Precinct", "First", "Last", "Middle", "email"]
+emailLogFile = "email-adds-log.csv"             # email merge error report file
+emailLogFileh = 0
+emailLine = []
 
-stream = 0
-voterDataHeading = ""
-voterDataFile    = "voterdata-s.csv"
-voterDataFileh = 0
-voterData = 0
-voterDataLine = []
-
-electionValue = []
+electionValue = []                              # array of election weights loaded from config file
 
 printFile = "print.txt"
 printFileh = 0
 
 helpReq   = 0
-fileCount = 0
 
-csvHeadings = []
 line1Read = ''
 linesRead = 0
 printData = ""
 linesWritten = 0
 statsAdded   = 0
-csvRowHash = []
 stateVoterID = 0
-date = 0
-adjustedDate = 0
-before = 0
-vote = 0
-cycle = 0
 totalVotes      = 0
 linesIncRead    = 0
 linesIncWritten = 0
 ignored         = 0
 currentVoter = 0
-
-voterDataHeading = ["statevoterid",
+#
+#  variables for intermediate by voter history file
+#
+stream = 0                                  # stream for temp file output/input
+voterDataLine = []                          # data row as list to use globally
+voterDataHeading = ["statevoterid",         # By Voter csv header
     "11/03/20 general",                     # index to here is 1 for configuration load
     "06/09/20 primary",
     "11/06/18 general",
@@ -109,13 +113,10 @@ voterDataHeading = ["statevoterid",
     "Polls",           #24 Calculated
     "Absentee",        #25 Calculated
     "Early",           #26 Calculated
-    "Provisional",     #27 Calculated
-    "LikelytoVote",    #28 Calculated
-    "Score"]           #29 Calculated
-
-
-precinctPolitical = 0
-RegisteredDays   = 0
+    "Provisional"]     #27 Calculated
+#
+#  Accumulation cells for summaries
+#
 generalCount     = 0
 primaryCount     = 0
 pollCount        = 0
@@ -127,29 +128,16 @@ activeREP        = 0
 activeDEM        = 0
 activeOTHR       = 0
 totalVOTERS      = 0
-totalGENERALS    = 0
-totalPRIMARIES   = 0
-totalPOLLS       = 0
-totalABSENTEE    = 0
-totalPROVISIONAL = 0
 totalMAIL        = 0
-totalSTR         = 0
-totalMOD         = 0
-totalWEAK        = 0
 votesTotal       = 0
 voterRank        = 0
 voterScore       = 0
-voterScore2      = 0
 noVotes  = 0
-
+#
+#  Dates of configured elections and two weeks prior to configured elections as DateTie Objects
+#
 voterHeadingDates = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 voterEarlyDates = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-#
-#  Array to compile the highest voter ID that voted in each of the 20 elections being tracked
-#
-HighVoterID = [0,                                          # VoterID = 0 indicates this record
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]               # Highest Voter ID that voted in the 20 elections (inits at 0)
 #
 # Precinct file data
 #
@@ -191,11 +179,12 @@ PctStrongAllOther =[]               # Array of # Strong Voting All Other Parties
 PctModAllOther =[]                  # Array of # Moderate Voting All Other Parties
 PctWeakAllOther =[]                 # Array of # Weak Voting All Other Parties
 PctActiveRep =[]                    # Array of # of active Republican
-PctActiveDem =[]                     # Array of # of active Democrat
+PctActiveDem =[]                    # Array of # of active Democrat
 PctActiveAllOther =[]               # Array of # of active voter in All Other Parties
 #
-pctHeading = ""                     # Precint File Header
-pctHeading =[   "Precinct",         # Precinct Number
+#                                   # Precinct File Header
+pctHeading =[   "County",           # County
+                "Precinct",         # Precinct Number
                 "CongDist",         # Congressional District
                 "AssmDist",         # Assembly District
                 "SenDist ",         # Senate District
@@ -232,16 +221,44 @@ pctHeading =[   "Precinct",         # Precinct Number
                 "#Strong Other",    # Total Strong Voting All Other Parties
                 "#Moderate Other",  # Total Moderate All Other Parties
                 "#Weak Other"]      # Total Weak All Other Parties
-
+#
+# Dictionary to convert County Name to number larger than largest Precinct Number
+#  This allows creation of a County+Precinct NUMBER by adding this number to the precinct number\
+# so list stays sorted by both precinct and county if multi-county data set being processed
+#
+PctCntyDict =  {"Carson City" :  1000000,
+                "Churchill"   :  2000000,
+                "Clark"       :  3000000,
+                "Douglas"     :  4000000,
+                "Elko"        :  5000000,
+                "Esmeralda"   :  6000000,
+                "Eureka"      :  7000000,
+                "Humboldt"    :  8000000,
+                "Lander"      :  9000000,
+                "Lincoln"     : 10000000,
+                "Lyon"        : 11000000,
+                "Mineral"     : 12000000,
+                "Nye"         : 13000000,
+                "Pershing"    : 14000000,
+                "Storey"      : 15000000,
+                "Washoe"      : 16000000,
+                "White Pine"  : 17000000}
+#
 #                      base.csv header
-fixedflds = 32;                     # 32 fixed fields before votedata
-baseHeading = ["CountyID",     "StateID",  "Status",   "County",    "Precinct", "CongDist",
-    "AssmDist",     "SenDist",  "BrdofEd",  "CntyComm",  "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
+#
+fixedflds = 33;                         # 33 fixed fields before vote data
+baseHeading = ["CountyID",     "StateID",  "Status",   "County",    "Precinct", "CongDist", "AssmDist",    
+    "SenDist",  "BrdofEd", "Regent",  "CntyComm",  "Rwards",   "Swards",   "SchBdTrust", "SchBdAtLrg",
     "First",        "Last",     "Middle",   "Suffix",    "Phone",    "email",
     "BirthDate",    "RegDate",  "Party",  "StreetNo",  "StreetName",   "Address1", "Address2", "City",
-    "State",        "Zip",  "RegisteredDays", "Age", 
-    "11/03/20-G",                         # index to here is 32
-    "06/09/20-P",                         # these 20 election headers loaded from Config file
+    "State",        "Zip",  "RegisteredDays", 
+    #
+    #    "Age" Must be column just prior to election vote fields, or programs using base.csv may break!!!
+    #               add any new columns anywhere before here and adjust fixedflds to match
+    #
+    "Age",
+    "11/03/20-G",                       # index to here is 33 (fixedflds above)
+    "06/09/20-P",                       # these 20 election headers are loaded from Config file
     "11/06/18-G",
     "06/12/18-P",   
     "11/08/16-G",
@@ -264,32 +281,19 @@ baseHeading = ["CountyID",     "StateID",  "Status",   "County",    "Precinct", 
     "Polls",  "Absentee", 
     "Early",  "Provisional",
     "LikelytoVote", "Score"]
-bDict = []
+bDict = []                                      # index offsets - built by progra later
 
-emailProfile = 0
-emailHeading = ""
-emailHeading = ["VoterID", "Precinct", "First", "Last", "Middle", "email"]
-
-# email merge error report
-emailLogFile = "email-adds-log.csv"
-emailLogFileh = 0
-emailLine = []
-
-votingLine = ""
-votingProfile = ""
-
-precinct = "000000"
-noVotes  = 0
-noData   = 0
-
-
-adPoliticalFile = "pctxref.csv"
-politicalLine   = []
-adPoliticalHash = []
-adPoliticalHeadings = []
-precinctPolitical
-noPoliticalWarn = 0
-Noxref = 0
+noVotes  = 0                                    # number of Registered voters with no votes cast
+noData   = 0                                    # number of Registered voters with no vote history data
+#
+#  Data for optional county and city district XREF file
+#
+adPoliticalFile = "pctxref.csv"                 # default file name (may be replaced by command line option)
+adPoliticalHeadings = []                        # XREF file header loaded here
+noPoliticalWarn = 0                             # set to 1 after first console log of missing precinct in xref file
+Noxref = 0                                      # Set to 1 if there is no xref file
+NoPct = 0                                       # set to 1 by -NoPct option
+MPct = 0                                        # set to 1 by MPct option
 
 ProgName = "NVVOTER"                  # Name of running program
 #
@@ -300,6 +304,7 @@ ProgName = "NVVOTER"                  # Name of running program
 # Print Log line to screen and file *
 #                                   *
 #************************************
+#
 def printLine (printData):
     global printFileh,ProgName
     datestring = datetime.datetime.now()
@@ -310,7 +315,13 @@ def printLine (printData):
     print( ProgName + " " + datestring + ' - ' + printData)
     print( ProgName + " " + datestring + ' - ' + printData, file=printFileh)
     return
-
+#
+#************************************
+#                                   *
+#     Print command line help       *
+#                                   *
+#************************************
+#
 def printhelp():
     print ("py nvvoter.py -config <filename> -infile <filename> -regfile <filename> -outfile<filename>")
     print ("               -pctfile <filename> -xref <filename> -emailfile <filename>")
@@ -321,6 +332,8 @@ def printhelp():
     print ("    -pctfile = precinct summary file - default is precinct.csv")
     print ("    -xref = Precinct to political district cross reference file - default is pctxref.csv")
     print ("    -emailfile = optional file of email addresses to add to base.csv on name match\n")
+    print ("    -NoPct = Do Not Output Precinct Summary file(s).")
+    print ("    -MPct = Output multi-count precinct summaries in a single precinct.csv file.")
     return
 #
 #============================================================================================================
@@ -331,8 +344,9 @@ def printhelp():
 #                                                      *
 #*******************************************************
 def args(argv):
-    global CfgFile, voterHistoryFile, voterDataFile, baseFile
+    global CfgFile, voterHistoryFile, baseFile
     global inputFile, voterEmailFile, pctFile, adPoliticalFile
+    global NoPct, MPct
 
     print("")
     hst = 0
@@ -343,15 +357,23 @@ def args(argv):
         while (x < NumParms):                                           # scan while any args left
             opt = argv[x]                                               # fetch parameter
             x += 1                                                      # bump index
-            if (x < NumParms):
-                arg = argv[x]                                           # parameter has arg, fetch it
-            else:
-                arg = ""                                                # parameter has no arg, probably -help
-            x += 1                                                      # bump index
-            if opt in ['-h', '-help', '-?']:
+            if opt in ['-h', '-help', '-?']:                            # look for single (no parameter) options
                 printhelp()
                 exit(2)
-            elif opt == "-outfile":
+            if (opt.lower() == "-nopct"):
+                NoPct = 1
+                continue
+            if (opt.lower() == "-mpct"):
+                MPct = 1
+                continue
+            if (x < NumParms):
+                arg = argv[x]                                           # Option has parametef arg, fetch it
+            else:
+                print(">>> Missing or Invalid Command Argument")
+                printhelp()                                             # missing parameter argument, print help
+                exit(2)
+            x += 1                                                      # bump index
+            if opt == "-outfile":                                       # check for options with a prameter
                 baseFile = arg
             elif opt == "-infile":
                 voterHistoryFile = arg
@@ -424,10 +446,12 @@ def args(argv):
 #
 #====================================================================================================
 #
-#---------------------------------------------------------------
-#
-#  Load the configuration spreadsheet.
-#  Currently it only contains the election cycle dates, types and vote weights
+#********************************************************************************
+#                                                                               *
+#               Load the configuration spreadsheet.                             *
+#  Currently it only contains the election cycle dates, types and vote weights  *
+#                                                                               *
+#********************************************************************************
 #
 def load_config():
     global electionValue, voterDataHeading, CfgFile, baseHeading
@@ -502,24 +526,93 @@ def load_config():
 #
 #====================================================================================================
 #
-#---------------------------------------------------------------
-#  routine: evaluateVoter
+#************************************************************************
+#  Output 1st data row of base.csv as special record with:              *
+#    CountyID = 0                                                       *
+#    StateID = 0                                                        *
+#    Precinct = 0                                                       *
+#    RegDate = SOS data effective date                                  *
+#    BirthDate = Date of this run (today)                               *
+#    all other fields either null string or text 0 depending on type    *
+#************************************************************************
 #
-# determine if reliable voter by voting pattern over last five cycles
-# tossed out special elections and mock elections
-#  voter reg_date is considered
-#  weights: strong, moderate, weak
-# if registered < 2 years       gen >= 1 and pri <= 0   = STRONG
-# if registered > 2 < 4 years   gen >= 1 and pri >= 0   = STRONG
-# if registered > 4 < 8 years   gen >= 4 and pri >= 0   = STRONG
-# if registered > 8 years       gen >= 6 and pri >= 0   = STRONG
+def write_pct0():
+    global baseHeading, baseFileh, baseLine, bDict
+
+    n = voterHistoryFile.lower().find("voterlist")                  # get index of std format file name
+    if(n == -1):
+        print(f"Error: Voter History File Name not in NVSOS format, can't find SOS data \'as-of\" date!!")
+        exit(2)
+    #
+    # create special row 1 base.csv record as all empty text fields
+    #
+    baseLine = [""] * len(baseHeading)                                # create base.csv row of empty entries
+    #
+    #  Now fill in numeric columns with 0
+    #
+    baseLine[bDict["CountyID"]] = '0'
+    baseLine[bDict["StateID"]] = '0'
+    baseLine[bDict["Precinct"]] = '0'
+    baseLine[bDict["TotalVotes"]] = '0'
+    baseLine[bDict["Generals"]] = '0'
+    baseLine[bDict["Primaries"]] = '0'
+    baseLine[bDict["Polls"]] = '0'
+    baseLine[bDict["Absentee"]] = '0'
+    baseLine[bDict["Early"]] = '0'
+    baseLine[bDict["Provisional"]] = '0'
+    baseLine[bDict["Score"]] = '0'
+    baseLine[bDict["CongDist"]] = '0'
+    baseLine[bDict["AssmDist"]] = '0'
+    baseLine[bDict["SenDist"]] = '0'
+    baseLine[bDict["BrdofEd"]] = '0'
+    baseLine[bDict["Regent"]] = '0'
+    baseLine[bDict["StreetNo"]] = '0'
+    baseLine[bDict["Zip"]] = '0'
+    baseLine[bDict["RegisteredDays"]] = '0'
+    baseLine[bDict["Age"]] = '0'
+    baseLine[bDict["Status"]] = 'Inactive'                          # just in case someone tries to use this as a voter
+    #
+    # Get "as-of" date for downloaded NV Secretary of State Data from file name format
+    #
+    name = voterHistoryFile[n:]                                     # extract filename from path name
+    mm = name[22:24]                                                # Get month/day/year from SOS file name
+    dd = name[24:26]
+    yy = name[26:28]
+    vhdate = mm + "/" + dd +"/20" +yy                               # get date in form mm/dd/yy
+    baseLine[bDict["RegDate"]] = vhdate                             # Store SOS data valid as of date as RegDate
+    #
+    #  Store time of this run as BirthDate
+    #
+    dt = datetime.datetime.today()                                  # get current date as datetime object
+    bdate = str(dt.month) + "/" + str(dt.day) + "/" + str(dt.year)
+    baseLine[bDict["BirthDate"]] = bdate
+    #
+    printLine(f"Secretary of State Data file set is as of {vhdate}, base.csv date is {bdate}...")
+    #
+    #  Now write out the special row 0 to base.csv
+    #
+    temp = ",".join(baseLine)                                       # join row data list into comma separated .csv string
+    print (temp, file=baseFileh)                                    # Write out to base.csv
+    return(0)
 #
-def evaluateVoter():
-    global totalGENERALS, totalPRIMARIES, totalPOLLS, totalABSENTEE
-    global totalPROVISIONAL, totalSTR, totalMOD, totalWEAK
+#====================================================================================================
+#
+#****************************************************************************
+#                                                                           *
+# determine if reliable voter by voting pattern over last five cycles       *
+# toss out special elections and mock elections, voter reg_dateconsidered   *
+#  weights: STRONG, MODERATE, WEAK                                          *
+# if registered < 2 years       gen >= 1 and pri <= 0   = STRONG            *
+# if registered > 2 < 4 years   gen >= 1 and pri >= 0   = STRONG            *
+# if registered > 4 < 8 years   gen >= 4 and pri >= 0   = STRONG            *
+# if registered > 8 years       gen >= 6 and pri >= 0   = STRONG            *
+#                                                                           *
+#****************************************************************************
+#
+def evaluateVoter(): 
     global voterDataLine, voterDataHeading
     global generalCount, primaryCount, pollCount, absenteeCount, earlyCount
-    global provisionalCount, votesTotal, voterRank, voterScore2
+    global provisionalCount, votesTotal, voterRank
 
     generalPollCount  = 0           # init local variables
     generalEarlyCount = 0
@@ -530,7 +623,6 @@ def evaluateVoter():
     primaryNotVote    = 0
     badcode           = 0
     badstring         = ""
-    oldestCast        = 0
     #
     generalCount      = 0           # init global variables
     primaryCount      = 0
@@ -582,7 +674,6 @@ def evaluateVoter():
                 generalCount     += 1
                 pollCount        += 1
                 votesTotal       += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'FW'):
@@ -590,7 +681,6 @@ def evaluateVoter():
                 generalCount     += 1
                 pollCount        += 1
                 votesTotal       += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'EV' ):
@@ -598,7 +688,6 @@ def evaluateVoter():
                 earlyCount        += 1
                 generalCount      += 1
                 votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'MB' ):
@@ -607,26 +696,24 @@ def evaluateVoter():
                 earlyCount        += 1
                 absenteeCount     += 1
                 votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'PV' ):
                 generalCount      += 1
                 provisionalCount  += 1
                 votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'BR' ):
               #  generalCount     += 1
               #  provisionalCount += 1
               #  votesTotal       += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (badcode != 0 ):
                 printLine(f"Unknown General Election Code {badstring} for voter {currentVoter}")
                 badcode = 0
+            continue
         #
         # record a primary vote
         # if there is no vote recorded shown with a "blank" then NOT ELEGIBLE
@@ -649,7 +736,6 @@ def evaluateVoter():
                 primaryCount     += 1
                 pollCount        += 1
                 votesTotal       += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'EV' ):
@@ -657,7 +743,6 @@ def evaluateVoter():
                 earlyCount        += 1
                 primaryCount      += 1
                 votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
             if (votecode == 'MB' ):
                 primaryEarlyCount += 1
@@ -665,7 +750,6 @@ def evaluateVoter():
                 earlyCount        += 1
                 absenteeCount     += 1
                 votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'BR' ):
@@ -674,14 +758,12 @@ def evaluateVoter():
                # earlyCount        += 1
                # absenteeCount     += 1
                # votesTotal        += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (votecode == 'PV' ):
                 primaryCount     += 1
                 provisionalCount += 1
                 votesTotal       += 1
-                oldestCast = vote
                 badcode    = 0
                 continue
             if (badcode != 0 ):
@@ -691,59 +773,23 @@ def evaluateVoter():
             printLine(f"Unknown Vote Code {badstring} for voter {currentVoter}")
             badcode = 0
     #
-    # Likely to vote score:
-    # if registered < 2 years       gen <= 1 || notelig >= 1            = WEAK
-    # if registered < 2 years       gen == 1 ||                         = MODERATE
-    # if registered < 2 years       gen == 2 ||                         = STRONG
-
-    # if registered > 2 < 4 years   gen <= 0 || notelig >= 1            = WEAK
-    # if registered > 2 < 4 years   gen >= 2 && pri >= 0                = MODERATE
-    # if registered > 2 < 4 years   gen >= 3 && pri >= 1                = STRONG
-
-    # if registered > 4 < 8 years   gen >= 0 || notelig >= 1            = WEAK
-    # if registered > 4 < 8 years   gen >= 0 && gen <= 2  and pri == 0  = WEAK
-    # if registered > 4 < 8 years   gen >= 2 && gen <= 5  and pri >= 0  = MODERATE
-    # if registered > 4 < 8 years   gen >= 3 && gen <= 12 and pri >= 0  = STRONG
-
-    # if registered > 8 years   gen >= 0 && gen <= 2 || notelig >= 1    = WEAK
-    # if registered > 8 years   gen >= 0 && gen <= 4  and pri == 0      = WEAK
-    # if registered > 8 years   gen >= 3 && gen <= 9  and pri >= 0      = MODERATE
-    # if registered > 8 years   gen >= 6 && gen <= 12 and pri >= 0      = STRONG
-    #
-    if (votesTotal > 0):
-        voterScore  = ((generalCount + primaryCount ) / oldestCast) * 10
-        voterScore2 = round(voterScore)
-    else:
-        voterScore2 = 0                               # if never voted, call WEAK
-    #
-    # voted, get weak, moderate or string
-    if (voterScore2 > 5):
-        voterRank = "STRONG"
-        totalSTR += 1
-    if ((voterScore2 >= 3) and (voterScore2 <= 5)):
-        voterRank = "MODERATE"
-        totalMOD += 1
-    if (voterScore2 < 3):
-        voterRank = "WEAK"
-        totalWEAK += 1
-    #
-    totalGENERALS    = totalGENERALS + generalCount
-    totalPRIMARIES   = totalPRIMARIES + primaryCount
-    totalPOLLS       = totalPOLLS + pollCount
-    totalABSENTEE    = totalABSENTEE + absenteeCount
-    totalPROVISIONAL = totalPROVISIONAL + provisionalCount
+    voterRank = ""                                         # Placeholder, this is done in 2nd half of processing
     return
 #
 #====================================================================================================
 #
-#   Numeric Binary Search
-#
-# index = binarylookup(list, val)
-#   list = is a sorted list of numeric values
-#   val = is the target value that might be in the list.
-#
-#   binarylookup() returns the list index such that list[index] = val
-#                  returns -1 if val not in list
+#************************************************************************
+#                                                                       *
+#                       Numeric Binary Search                           *
+#                                                                       *
+# index = binarylookup(list, val)                                       *
+#   list = is a sorted list of numeric values                           *
+#   val = is the target value that might be in the list.                *
+#                                                                       *
+#   binarylookup() returns the list index such that list[index] = val   *
+#                  returns -1 if val not in list                        *
+#                                                                       *
+#************************************************************************
 #
 def binarylookup (list, val):
 #    d = 0
@@ -772,25 +818,31 @@ def binarylookup (list, val):
 #
 #====================================================================================================
 #
-#  Force item to be type string
+#********************************************
+#                                           *
+#  return an item forced to be type string  *
+#                                           *
+#********************************************
 #
 def makestr(temp):
     if(isinstance(temp,str)):
-        return(temp)
+        return(temp)                            # already a string, nothign to do
     if(isinstance(temp,float)):
-        temp = str(int(temp))
+        temp = str(int(temp))                   # floating point number - convert to string
         return (temp)
-    temp = (str(temp))
+    temp = (str(temp))                          # convert integer to string
     return (temp)
 #
 #====================================================================================================
 #
-#---------------------------------------------------------------
+#************************************************************
+#                                                           *
+#  Add a new precinct row to the parallel precinct tables   *
+#  keepin the tables in ascending precinct order            *
+#                                                           *
+#************************************************************
 #
-#  Add a new precinct row to the parallel precinct tables
-#  keepin the tables in ascending precinct order
-#
-def add_pct():
+def add_pct(CntyPct):
     global NumPct, baseLine, PctPrecinct, PctCD, PctAD, PctSD, PctBoardofEd
     global PctCntyComm, PctRwards, PctSwards, PctSchBdTrust, PctSchBdAtLrg
     global PctGenerals, PctPrimaries, PctPolls, PctAbsentee, PctRegRep
@@ -803,7 +855,7 @@ def add_pct():
     #
     #  Append a row, as we know we need a new one
     #
-    PctPrecinct.append(int(baseLine[bDict["Precinct"]]))    # set precinct number
+    PctPrecinct.append(CntyPct)                             # set precinct number
     PctCD.append(baseLine[bDict["CongDist"]])               # set CD for this precinct
     PctAD.append(baseLine[bDict['AssmDist']])               # set Assembly District
     PctSD.append(baseLine[bDict['SenDist']])                # set Senate District
@@ -838,15 +890,13 @@ def add_pct():
     PctActiveAllOther.append(0)
     if (NumPct == 0):
         NumPct = NumPct+1;                                  # say we added an array row
-#        print (f"Appended {newpct}")
-#        print (PctPrecinct)
         return                                              # first entry, no more to do
     #
     #  Maintain the list in sorted order.
     #
     ix = 0
-    newpct = int(baseLine[bDict["Precinct"]])               # precinct we're adding
-    while(PctPrecinct[ix] <= newpct):                        # find where it goes in the list
+    newpct = CntyPct                                        # precinct we're adding
+    while(PctPrecinct[ix] <= newpct):                       # find where it goes in the list
         ix = ix+1
         if ix > NumPct:
             NumPct = NumPct+1;                              # say we added an array row
@@ -896,7 +946,7 @@ def add_pct():
     #
     #  ix points to open space we opened up.  Now do insertions there
     #
-    PctPrecinct[ix] = int(baseLine[bDict["Precinct"]])      # set precinct number
+    PctPrecinct[ix] = CntyPct                               # set precinct number
     PctCD[ix] = baseLine[bDict["CongDist"]]                 # set CD for this precinct
     PctAD[ix] = baseLine[bDict['AssmDist']]                 # set Assembly District
     PctSD[ix] = baseLine[bDict['SenDist']]                  # set Senate District
@@ -936,18 +986,52 @@ def add_pct():
 #
 #====================================================================================================
 #
-#---------------------------------------------------------------
+#************************************************************************
+#                                                                       *
+#  Write out the precinct summary arrays to the precinct.csv file(s)    *
+#                                                                       *
+#************************************************************************
 #
-#  Write out the precinct matrix data to the precinct.csv file
-#
-def write_precinct():
+def write_precinct(multicounty):
     global PctPrecinct, NumPct, PctRegNP, PctRegIAP, PctRegLP, PctRegGP, PctRegOther
     global PctRegRep, PctRegDem, pctFileh, PctBoardofEd, PctCntyComm, PctRwards
     global PctSwards, PctSchBdTrust, PctSchBdAtLrg, PctGenerals, PctPrimaries, PctPolls
     global PctAbsentee, PctActiveRep, PctActiveDem, PctActiveAllOther, PctStrongRep
     global PctModRep, PctWeakRep, PctStrongDem, PctModDem, PctWeakDem
-    global PctStrongAllOther, PctModAllOther, PctWeakAllOther
+    global PctStrongAllOther, PctModAllOther, PctWeakAllOther, pctHeading, MPct
+    global pctFile
 
+    if (multicounty == False):
+        printLine(f"Creating Voter precinct-table file: {pctFile}")
+    else:
+        Mfilebase = ""                                                                  # assume -MPct option given
+        if (MPct == 0):
+            MCntyNum = int(PctPrecinct[0]/1000000)                                      # get county index from 1 to 17 of 1st precint in list
+            Cnty = list(PctCntyDict.keys())
+            Cnty = Cnty[MCntyNum-1]                                                     # get county name
+            if (pctFile[-4:]  == ".csv"):
+                Mfilebase = pctFile[:-4]                                                # get name less .csv
+                pctFile = Mfilebase + "_" + Cnty + ".csv"                               # construct 1st precinct summary file name
+        printLine(f"Creating Muli-County Voter precinct-table file: {pctFile}")
+
+    #
+    # Open precinct summary .csv file for output
+    #
+    try:
+        pctFileh = open(pctFile, "w")
+    except IOError as e:
+        printLine ("Unable to open Precinct file: I/O error({0}): {1}".format(e.errno, e.strerror))
+        exit(2)
+    except: #handle other exceptions such as attribute errors
+        printLine ("Unexpected error:", sys.exc_info()[0])
+        exit(2)
+    #
+    #  Write Header Row to precinct file
+    #
+    PctHdr = ",".join(pctHeading)                                # join header list into comma separated string
+    print (PctHdr, file=pctFileh)                                # Write out precinct summary file Header row
+    #
+    #  Now output 
     lineout = ""
     totvote = 0
     pctRep = 0
@@ -979,7 +1063,16 @@ def write_precinct():
         #  There's probably a better way to build the output line, but I don't know
         #  what it is so here goes brute force.
         #
-        lineout = makestr(PctPrecinct[i]) + "," + PctCD[i] + "," + PctAD[i] + "," + PctSD[i] + "," 
+        #  Get County Text and Precint Number from PctPrecinct
+        #
+        CntyNum = int(PctPrecinct[i]/1000000)                                       # get county index from 1 to 17
+        Cnty = list(PctCntyDict.keys())
+        Cnty = Cnty[CntyNum-1]                                                      # get county name
+        precinct = PctPrecinct[i] % 1000000                                         # get county number
+        #
+        #  Form the .CSV string and output it to file
+        #
+        lineout = Cnty + "," + makestr(precinct) + "," + PctCD[i] + "," + PctAD[i] + "," + PctSD[i] + "," 
         lineout = lineout + PctBoardofEd[i] + "," + PctCntyComm[i] + "," + PctRwards[i] + ","
         lineout = lineout + PctSwards[i] + "," + PctSchBdTrust[i] + "," + PctSchBdAtLrg [i] + ","
         lineout = lineout + makestr(PctGenerals[i]) + "," + makestr(PctPrimaries[i]) + ","
@@ -991,19 +1084,44 @@ def write_precinct():
         lineout = lineout + makestr(PctStrongRep[i]) + "," + makestr(PctModRep[i]) + "," + makestr(PctWeakRep[i]) + ","
         lineout = lineout + makestr(PctStrongDem[i]) + "," + makestr(PctModDem[i]) + "," + makestr(PctWeakDem[i]) + ","
         lineout = lineout + makestr(PctStrongAllOther[i]) + "," + makestr(PctModAllOther[i]) + "," + makestr(PctWeakAllOther[i])
-
-        print (lineout, file=pctFileh)
+        #
+        if ((multicounty == True) and (MPct == 0)):
+            if (CntyNum == MCntyNum):
+                print (lineout, file=pctFileh)                                          # write next precinct to county's precinct.csv file
+            else:
+                pctFileh.close()                                                        # close this county's precinct file
+                MCntyNum = CntyNum
+                pctFile = Mfilebase + "_" + Cnty + ".csv"                               # construct next county's precinct summary file name
+                printLine(f"Creating Muli-County Voter precinct-table file: {pctFile}")
+                try:
+                    pctFileh = open(pctFile, "w")                                       # open this file
+                except IOError as e:
+                    printLine ("Unable to open Precinct file: I/O error({0}): {1}".format(e.errno, e.strerror))
+                    exit(2)
+                except: #handle other exceptions such as attribute errors
+                    printLine ("Unexpected error:", sys.exc_info()[0])
+                    exit(2)
+                print (PctHdr, file=pctFileh)                                           # Write out precinct summary file  Header row
+                print (lineout, file=pctFileh)                                          # write 1st precinct to this county's precinct.csv file
+        else:
+            print (lineout, file=pctFileh)                                              # write to the precinct.csv file
+    pctFileh.close()                                                                    # close precinct file
     return
 #
 #====================================================================================================
 #
-#---------------------------------------------------------------
+#****************************************************************************************************
+#                                                                                                   *
+#  Calculate data for precinct.csv file from data for each voter in a precinct                      *
+#                                                                                                   *
+#  Called for each line in S.O.S. data file after it is processed                                   *                                       
+#  Processing creates parallel arrays for each precinct in the base.csv file                        *
+#  These arrays are sorted in precinct order to allow binary searching during processing            *
+#                                                                                                   *
+#  Note: at the end of reading SOS file data, these arrays are used to output precinct.csv file(s)  *
+#****************************************************************************************************
 #
-#  Calculate data for precinct.csv file
-#  Called for each line in S.O.S. data file after
-#  all processing to create $baseLine Hash for this record
-#
-def calc_precinct():
+def calc_precinct(CntyPct):
     global bDict, baseLine, PctPrecinct, NumPct, PctGenerals
     global PctPrimaries, PctPolls, PctAbsentee
     global PctRegRep, PctActiveRep, PctStrongRep, PctModRep, PctWeakRep
@@ -1013,13 +1131,13 @@ def calc_precinct():
     i =0
     Active=0
     if (NumPct == 0):
-        add_pct()
-        i=0                                        #1st precinct added, set index
+        add_pct(CntyPct)
+        i=0                                         # 1st precinct added, set index
     else:
-        i = binarylookup(PctPrecinct,int(baseLine[bDict["Precinct"]]))
+        i = binarylookup(PctPrecinct,CntyPct)
         if (i == -1):
             i = NumPct                              # this precinct not in list, this will be its index
-            add_pct()                               # new precinct, add a row for it
+            add_pct(CntyPct)                        # new precinct, add a row for it
     #
     #  i = index for this precinct's row in the precinct parallel array matrix
     #
@@ -1118,14 +1236,14 @@ def main():
     ##############################################################################
     #  Define all of the global tables and variables main program needs access to
     #
-    global CfgFile, voterHistoryFile, voterDataFile, printFileh, ProgName
+    global CfgFile, voterHistoryFile, printFileh, ProgName
     global voterDataHeading, voterHeadingDates, voterEarlyDates, stateVoterID
     global ignored, totalVotes, votesTotal, generalCount, primaryCount, pollCount
-    global absenteeCount, earlyCount, provisionalCount, voterRank, voterScore2
+    global absenteeCount, earlyCount, provisionalCount, voterRank, voterScore
     global linesWritten, linesIncWritten, voterDataLine, stream, linesIncRead
     global inputFile, voterEmailFile, pctFile, adPoliticalFile, baseFile, baseFileh
     global Noxref, noPoliticalWarn,duplicates, noVotes, noData, statsAdded
-    global baseLine, bDict, pctFileh, emailAdded
+    global baseLine, bDict, pctFileh, emailAdded, NoPct, MPct
     #
     ###############################################################################
     #
@@ -1181,13 +1299,13 @@ def main():
         hframe = pd.read_csv (voterHistoryFile,low_memory=False)    #  Read .csv Vote History file into dataframe "hframe"
     else:
         hframe = pd.read_excel (voterHistoryFile)                   #  Read .xls or .xlsx Vote History file into dataframe "hframe"
-    csvHeadings = list(hframe.columns)                              #  Get Vote History Headers
     hfrows = len(hframe.index)
     #
     #   Sort the dataframe on Voter ID so output will be sorted in that order
     #
     printLine(f"Sorting Vote History File on Voter ID...")
     hframe.sort_values(by=['VoterID'], inplace=True)
+    printLine("Converting History to Dictionary...")
     hDict = hframe.to_dict(orient='list')                           # convert hframe to dictionary with parallel columns
     hframe =[]                                                      # release dataframe memory
     printLine("Building Voting History for Configured Elections from {0:,} votes...".format(hfrows))
@@ -1257,8 +1375,6 @@ def main():
                 voterDataLine[25] = str(absenteeCount)
                 voterDataLine[26] = str(earlyCount)
                 voterDataLine[27] = str(provisionalCount)
-                voterDataLine[28] = str(voterRank)
-                voterDataLine[29] = str(voterScore2)
                 voterDataLine[0] = str(voterDataLine[0])                # make voter ID a string to write out
                 temp = ",".join(voterDataLine) + "\n"
                 stream.write(temp.encode('ASCII'))
@@ -1299,19 +1415,20 @@ def main():
     #
     #  Done, close the output file
     #
-    stream.seek(0)                                                      # rewind data stream
-    hframe = pd.read_csv(stream)
-    stream.close()
     printLine(f"<===> Completed Processing of: {voterHistoryFile}")
     printLine("<===> Total Vote History Records Read: {0:,}".format(linesRead))
-    printLine("<===> Total Voter History Records Compiled: {0:,}".format(linesWritten))
     printLine("<===> Total Vote History Records for Non-configured Elections Ignored: {0:,}".format(ignored))
+    printLine("<===> Total By Voter History Records Compiled: {0:,}".format(linesWritten))
+    printLine("Loading By Voter History Records into DataFrame...")
+    stream.seek(0)                                                      # rewind data stream
+    hframe = pd.read_csv(stream,low_memory=False)                       # read the by voter records into dataframe hframe
+    stream.close()                                                      # close the data stream
     #
     #  For lookup speed make nans = "" and make parallel lists of precincts, and dataframe rows
     #
     printLine(f"Transforming Voter History Array...")
     hframe = hframe.replace(np.nan, '', regex=True)                     # make any nans into '' for entire data frame
-    hfvid = hframe['statevoterid'].tolist()                              # parallel list of voter IDs
+    hfvid = hframe['statevoterid'].tolist()                             # parallel list of voter IDs for binary search
     hflist = hframe.values.tolist()                                     # convert dataframe rows to python list of lists
     hframe= []                                                          # release dataframe memory
     #
@@ -1326,6 +1443,8 @@ def main():
     else:
         eframe = pd.read_excel (inputFile)                          #  Read .xls or .xlsx Eligible Voter file into dataframe "eframe"
     eframe = eframe.replace(np.nan, '', regex=True)                 #  make any nans into '' All data frame
+    printLine("Sorting Eligible Voter File on County")
+    eframe.sort_values(by=['Residential County'], inplace=True, kind="mergesort")
     NumEv = len(eframe.index)
     #
     evHeadings = list(eframe.columns)                               # Get Vote History Headers
@@ -1337,17 +1456,31 @@ def main():
     #  Load County political district XREF file if present
     #
     if ( os.path.exists(adPoliticalFile) == False):
-        printLine(f"******** Precinct XREF file {adPoliticalFile}  does not exist.")
+        printLine(f"******** Precinct Local District XREF file {adPoliticalFile}  does not exist.")
         printLine("******** Output Base File Will Only Contain State Races, Local Races Will Be Blank!")
         Noxref = 1
     else:
-        printLine(f"Loading Precinct XREF file {adPoliticalFile}")
+        printLine(f"Loading Precinct Local District XREF file {adPoliticalFile}")
         if (adPoliticalFile[-4:] == ".csv"):
             xframe = pd.read_csv (adPoliticalFile,low_memory=False) #  Read .csv Eligible Voter file into dataframe "eframe"
         else:
             xframe = pd.read_excel (adPoliticalFile)                #  Read .xls or .xlsx Eligible Voter file into dataframe "eframe"
         xframe = xframe.replace(np.nan, '', regex=True)             #  make any nans into '' All data frame
-        xframe.sort_values(by=['PRECINCT'], inplace=True)           #  make sure it's sorted by precinct
+        i = 0
+        CtyPct = []
+        CtyNum = 0
+        for i in range(0,len(xframe.index)):
+            CName = xframe.iloc[i]["COUNTY"].title()                # get county name of this row
+            if (CName == "Washoe"):
+                Pct = int(xframe.iloc[i]["PRECINCT"])
+                if (Pct > 9999):                                    # If Washoe precinct has trailing 00
+                    Pct = int(Pct/100)                              # remove the two trailing zeroes
+                    xframe.ix[i,"PRECINCT"] = Pct
+            CtyNum = PctCntyDict[CName]                             # get county number
+            CtyNum = CtyNum                                         # for county index for this county
+            CtyPct.append(int(xframe.iloc[i]["PRECINCT"]) + CtyNum) # build list of combined precint and county number
+        xframe["CTYPCT"] = CtyPct                                   # add row to frame
+        xframe.sort_values(by=['CTYPCT'], inplace=True)             #  make sure it's sorted by County+precinct number
         xreflist = xframe.to_dict(orient="list")                    #  get sorted xref DATAFRAME as Python Dictionary
         adPoliticalHeadings = list(xframe.columns)                  # Get XREF file Headers
     #
@@ -1360,7 +1493,7 @@ def main():
     try:
         baseFileh = open(baseFile, "w")
     except IOError as e:
-        printLine ("Unable tyo create base file: I/O error({0}): {1}".format(e.errno, e.strerror))
+        printLine ("Unable to create base file: I/O error({0}): {1}".format(e.errno, e.strerror))
         exit(2)
     except: #handle other exceptions such as attribute errors
         printLine ("Unexpected error:", sys.exc_info()[0])
@@ -1368,20 +1501,7 @@ def main():
     #
     temp = ",".join(baseHeading)                                # join header list into comma separated string
     print (temp, file=baseFileh)                                # Write out base.csv Header row
-
-
-    # Open precinct.csv file
-    printLine(f"Creating Voter precinct-table file: {pctFile}")
-    try:
-        pctFileh = open(pctFile, "w")
-    except IOError as e:
-        printLine ("Uanble to open Precinct file: I/O error({0}): {1}".format(e.errno, e.strerror))
-        exit(2)
-    except: #handle other exceptions such as attribute errors
-        printLine ("Unexpected error:", sys.exc_info()[0])
-        exit(2)
-    temp = ",".join(pctHeading)                                # join header list into comma separated string
-    print (temp, file=pctFileh)                                # Write out base.csv Header row\
+    write_pct0()                                                # write "precinct 0" record with SOS data effective date
     #
     # initialize the optional voter email log and the email array if selected
     #
@@ -1405,13 +1525,11 @@ def main():
         #
         voterEmailHeadings = list(veframe.columns)                       # Get Voter email file headers
         #
-        #  This get the email file into a dataframe, and the column header extracted to a list
+        #  This gets the email file into a dataframe, and the column header extracted to a list
         #  probably need to do more with this
         #
         # >>>>>>>>this has to be fixed for this to work <<<<<<<<<
-    #
-    # initialize the optional voter email log and the email array if selected
-    #
+        #--------------------------------------------------------------------------------
     #
     #    Now iterate through the Eligible Voter frame rows and process each into the base file
     #
@@ -1429,7 +1547,7 @@ def main():
             printLine(f"{linesRead} eligible voter records read\r")
             linesIncRead = 0
         #
-        baseLine = [""] * BaseCol                                 # init baseLine to null entries
+        baseLine = [""] * BaseCol                                   # init baseLine to null entries
         #
         #  Copy across fixed values
         #
@@ -1437,31 +1555,56 @@ def main():
         baseLine[bDict["StateID"]] = makestr(voterid)
         baseLine[bDict["CountyID"]] = makestr(line1Read[eDict["CountyVoterID"]])
         baseLine[bDict["Status"]]   = makestr(line1Read[eDict["CountyStatus"]])
-        baseLine[bDict["County"]]   = line1Read[eDict["County"]]
-        baseLine[bDict["Precinct"]] = makestr(line1Read[eDict["RegisteredPrecinct"]])
+        Cnty = line1Read[eDict["County"]].title()                   # Get Count Name with 1st letter of each word UC
+        baseLine[bDict["County"]]   = Cnty                          # store county name in normalized form
         #
-        #  Strip any CD, AD or SD down to only number if letters present
+        #  Maintain Single or Multiple Counties being processed flag "MultiCounty"
+        #
+        if (linesRead == 1):
+            FirstCounty = Cnty                                      # Get 1st county being considered
+            MultiCounty = False                                     # Assume processing single county
+        elif ((MultiCounty == False) and (FirstCounty != Cnty)):
+            MultiCounty = True                                      # Indicate more than one county in this SOS data set
+        #
+        #  Normalize precinct number for base.csv so always predictable format
+        #
+        #  1. Remove any decimal notation on precinct #  Just use Whole Number
+        #  2. Assure Washoe County always 4 digit format
+        #
+        NormPct = makestr(line1Read[eDict["RegisteredPrecinct"]])   # fetch precinct number as type str
+        if (len(NormPct) > 2):
+            if (NormPct[-2] == "."):
+                NormPct = NormPct[:-2]                              # remove .n
+            elif(NormPct[-3] == "."):
+                NormPct = NormPct[:-3]                              # remove .nn
+        if ((Cnty == "Washoe") and (int(NormPct) > 9999)):
+            NormPct = NormPct[:-2]                                  # strip Washoe County trailing zeroes
+        baseLine[bDict["Precinct"]] = NormPct                       # store normalized precinct number
+        #
+        #  Strip any CD, AD, SD, ED or RD down to only number if letters present
         #
         baseLine[bDict["CongDist"]] = makestr(line1Read[eDict["CongressionalDistrict"]]).replace("CD","")
         baseLine[bDict['AssmDist']] = makestr(line1Read[eDict["AssemblyDistrict"]]).replace("AD","")
         baseLine[bDict['SenDist']]  = makestr(line1Read[eDict["SenateDistrict"]]).replace("SD","")
-        precinct = line1Read[eDict["RegisteredPrecinct"]]               # get this voter's precinct
+        baseLine[bDict['BrdofEd']]  = makestr(line1Read[eDict["EducationDistrict"]]).replace("ED","")
+        baseLine[bDict['Regent']]  = makestr(line1Read[eDict["RegentDistrict"]]).replace("RD","")
         #
         #  get voting history record for this voter if it exists
         #
-#        stats = list(hframe[hframe['statevoterid'] == currentVoter])
         ix = binarylookup(hfvid,voterid)
         if (ix >= 0):
             stats = hflist[ix]                                          # voterid found, fetch matching vote history record
             if (stats[0] != voterid):
-                print (f"Lookup Error: ix={ix}, voterid = {voterid}")
-                print (stats)
-                exit(0)
-            for i in range(0,29):
+                print (f"Lookup Error!!: ix={ix}, voterid = {voterid}") # Shouldn't happen, means binary search failed!!
+                print (stats)                                           # log line for debugging
+                exit(0)                                                 # Stop the music
+            for i in range(0,len(voterDataHeading)-1):
                 baseLine[i+fixedflds] = makestr(stats[i+1])             # copy fields from voterdata record (all 20 cycles plus stats)
             statsAdded += 1
         else:
-            # fill in record for registered voter with no vote history
+            #
+            # fill in base record for a registered voter with no vote history for configured elections
+            #
             noData += 1                                                 # count voters with no vote history
             for i in CycleCols:
                 baseLine[i+fixedflds] = ""                              # blank all 20 election votes
@@ -1471,21 +1614,26 @@ def main():
             baseLine[bDict["Absentee"]]     = '0'
             baseLine[bDict["Early"]]        = '0'
             baseLine[bDict["Provisional"]]  = '0'
-            baseLine[bDict["LikelytoVote"]] = "WEAK"
+            baseLine[bDict["LikelytoVote"]] = "NEVER"
             baseLine[bDict["Score"]]        = '0'
             baseLine[bDict["TotalVotes"]]   = '0'
         if (baseLine[bDict["TotalVotes"]] == '0'):
             noVotes += 1                                                # count eligible voter with no votes
         #
-        #  Fill In County Districts form Cross-reference file (if it exists)
+        #  Fill In County & City Districts from Cross-reference file (if it exists)
         #
+        try:
+            CntyNum = PctCntyDict[Cnty]                                 # Get Count Number for Precinct tables
+        except KeyError:
+            print(f"County {Cnty} isn't in PctCntyDict!!!")             # This means we have a problem!!!
+            print(line1Read)                                            # help locate it
+            exit(2)
         if (Noxref == 0):
-            ix = binarylookup(xreflist["PRECINCT"],precinct)                # find index of precinct in dictionary
+            ix = binarylookup(xreflist["CTYPCT"],int(NormPct)+CntyNum)             # find index of precinct in dictionary
             if (ix >= 0):
                 #
-                #  Found an XREF record for this precinct, Fill in the political districts from the XREF dictionary
+                #  Found an XREF record for this precinct, Fill in the county and city political districts from the XREF dictionary
                 #
-                baseLine[bDict["BrdofEd"]]    = makestr(xreflist["BOARDOFEDU"][ix])
                 baseLine[bDict["CntyComm"]]   = makestr(xreflist["COMMISSION"][ix])
                 baseLine[bDict["Rwards"]]     = makestr(xreflist["RWARDS"][ix])
                 baseLine[bDict["Swards"]]     = makestr(xreflist["SWARDS"][ix])
@@ -1496,8 +1644,8 @@ def main():
                     #
                     #  No XREF entry for this precinct
                     #
-                    printLine ("******** WARNING!! YOU NEED TO UPDATE PRECINCT XREF FILE")
-                    printLine (f"******** At least Precinct {precinct} not in precinct xref file.")
+                    printLine ("******** WARNING!! YOU NEED TO UPDATE PRECINCT LOCAL DISTRICT XREF FILE")
+                    printLine (f"******** At least Precinct {NormPct} in {Cnty} county not in xref file.")
                     printLine ("******** File debug.txt lists all missing precincts.")
                     #
                     #  Open debug.txt to list missing precincts
@@ -1520,32 +1668,29 @@ def main():
                     #
                     dup = 0
                     for i in range (0,len(duplicates)):
-                        if ( precinct == duplicates[i]):
+                        if ( int(NormPct)+CntyNum == duplicates[i]):
                             dup = 1                                       # already listed, skip listing it again
                             break
                     if (dup == 0):
                         #
                         #  List and remember a new missing precinct in debug.txt
                         #
-                        duplicates.append(precinct)                        # add to duplicate missing precinct detection list
-                        print(f"Precinct {precinct} not in precinct xref file", file= debugFileh)\
+                        duplicates.append(int(NormPct)+CntyNum)                # add to duplicate missing precinct detection list
+                        print(f"Precinct {NormPct} in {Cnty} not in precinct xref file", file= debugFileh)\
         #
         # convert proper names to upper case first then lower, then store in baseLine
         #
-        phase = 1
-        UCword = line1Read[eDict["FirstName"]].title()      # 1st letter UC, rest LC
+        # Save First and Last Name for email lookup later
+        #
+        UCword = line1Read[eDict["FirstName"]].title()                      # 1st letter UC, rest LC
         baseLine[bDict["First"]] = UCword
-        ccfirstName = UCword                                # Save first name for email lookup
-
-        phase = 2
-        baseLine[bDict["Middle"]] = line1Read[eDict["MiddleName"]].title()    # 1st letter UC, rest LC
-
-        phase = 3
-        UCword = line1Read[eDict["LastName"]].title()       # 1st letter UC, rest LC
-        UCword = UCword.replace(" ","")                     # remove all imbedded spaces
-        UCword = UCword.replace(",","-")                    # change comma to dash
+        ccfirstName = UCword                                                # Save first name for email lookup
+        baseLine[bDict["Middle"]] = line1Read[eDict["MiddleName"]].title()  # 1st letter UC, rest LC
+        UCword = line1Read[eDict["LastName"]].title()                       # 1st letter UC, rest LC
+        UCword = UCword.replace(" ","")                                     # remove all imbedded spaces
+        UCword = UCword.replace(",","-")                                    # change any comma to dash
         baseLine[bDict["Last"]] = UCword
-        cclastName = UCword                                 # save last name for email lookup
+        cclastName = UCword                                                 # save last name for email lookup
         #
         #  Copy Rest of SOS registration file fields to baseLine
         #
@@ -1560,6 +1705,8 @@ def main():
             baseLine[bDict["StreetName"]] = ""
         else:
             streetno = UCword.split(" ",1)                                  # split street number from street name
+            if (len(streetno) < 2):
+                streetno = ["",UCword]                                      # No number in Address1 field, adjust for this
             baseLine[bDict["StreetNo"]]   = streetno[0]
             baseLine[bDict["StreetName"]] = streetno[1]
         baseLine[bDict["Address2"]]   = line1Read[eDict["Address2"]].title()
@@ -1570,7 +1717,7 @@ def main():
         #
         #  do any email matching if selected on command line
         #
-        #   >>>>>>>>>>>  THIS NEEDS TO BE TESTED AND PROBABLY FIXED  <<<<<<<<<<<<<<<<
+        #   >>>>>>>>>>>  THIS NEEDS TO BE TESTED AND IS PROBABLY BROKEN AS IT SITS <<<<<<<<<<<<<<<<
         #
         if (voterEmailFile != ""):
             #  locate email address if available
@@ -1602,50 +1749,51 @@ def main():
                     print ("error:", sys.exc_info()[0])
                     print (emailLine)
                     exit(2)
+        #-----------------------------------------------------------
         #
-        #-------------------------------------------------
+        #     >>>>>>>>>  END EMAIL ADDRESS PROCESSING <<<<<<<<<
+        #
+        #------------------------------------------------------------
+        #
         # caclulate registered days and age of voter
         #
         birthdate = line1Read[eDict["BirthDate"]]
         regdate   = line1Read[eDict["RegistrationDate"]]
         before = 0
-
+        #
         # determine age
-        # my ( date, yy, mm, dd, now, age, regdays, before, adjustedDate );
+        #
         if (birthdate != ""):
-            #before = datetime.datetime.strptime(birthdate,"%m/%d/%Y")
+            #before = datetime.datetime.strptime(birthdate,"%m/%d/%Y")      # CONVERTED TO NEXT LINE FOR SPEEDUP
             before = datetime.datetime(int(birthdate[6:]),  int(birthdate[0:2]), int(birthdate[3:5]), 0, 0, 0)
             now          = datetime.datetime.today()
             age          = now - before
             age          = age.days / 365                   # age in years
             age          = str(round(age))                  # get integer of age in years
         else:
-            age = ""                                        # birthday nt present
+            age = ""                                        # birthday not present
         baseLine[bDict["Age"]] = age                        # store age in base record
         #
-        # determine registered days
+        # determine days since this voter registered to vote
         #
-        #before = datetime.datetime.strptime(regdate,"%m/%d/%Y")
+        #before = datetime.datetime.strptime(regdate,"%m/%d/%Y")            # CONVERTED TO NEXT LINE FOR SPEEDUP
         before = datetime.datetime(int(regdate[6:]), int(regdate[0:2]), int(regdate[3:5]),0 ,0 ,0)
-        regTimePiece = before;                                            # save encoded registration date for later work
+        regDateTime = before;                                              # save encoded registration date for later work
         now          = datetime.datetime.today()
-        regdays      = now - before
-        regdays      = regdays.days
-        baseLine[bDict["RegisteredDays"]] = str(regdays)
+        regdays      = now - before                                         # do DateTime calc to find # days registered as of today
+        regdays      = regdays.days                                         # get the # days from calculation
+        baseLine[bDict["RegisteredDays"]] = str(regdays)                    # store in baseLine as string
         #
         #-------------------------------------------------------------------------------
         #  Find oldest election reg date allows vote in.  If older vote, use that date
-        #  as it means voter re-registered at some point.
+        #  instead as it means the voter re-registered at some point.
         #
-        #  Calculate propensity strength from possible votes vs. actual votes
+        #  Then calculate propensity to vote strength from possible votes vs. actual votes
         #
         rstop = 0
-        ovote=""
-        test = 0
-        vid = line1Read[eDict["VoterID"]]
         for j in range(0, 20):
             edate = voterHeadingDates[j+1]
-            if (edate > regTimePiece):
+            if (edate > regDateTime):
                 # voter was registered for this election
                 rstop = j;                                                    # index+1 to oldest election registered for
             else:
@@ -1653,8 +1801,7 @@ def main():
                 #  See if older vote than registration date
                 #
                 if (baseLine[j+fixedflds] != ""):
-                    rstop = j;                                                # must have re-registered
-                    test = 1
+                    rstop = j;                                                # must have re-registered, use oldest voted election instead
         #
         #  rstop = index to oldest possible vote for this voter.
         #  calculate voter propensity to vote strength based on
@@ -1662,8 +1809,6 @@ def main():
         #
         maxstrength = 0
         voterstrength = 0                      # init accumulators
-        c = 0
-        ev = 0
         for j in range(0,rstop+1):
             maxstrength = maxstrength + electionValue[j]                      # sum possible election strengths
             if (baseLine[j+fixedflds] != ""):
@@ -1682,40 +1827,40 @@ def main():
             baseLine[bDict["LikelytoVote"]] = "STRONG"
         voterstrength = int(voterstrength + 0.49)                             # convert to 0-10 score
         #
-        #   base.csv record complete, write it out
-        #
+        #   base.csv record for this voter is now complete, write it out
         #
         i = 0
         for item in baseLine:
             if "," in item:
-                baseLine[i] = "\"" + baseLine[i] + "\""
+                baseLine[i] = "\"" + baseLine[i] + "\""                        # quote any field with comma in it
             i = i + 1
         #
         try:
             print (",".join(baseLine), file = baseFileh)            # write this voter's record to output file
-        except TypeError:
-            print ("error:", sys.exc_info()[0])
-            print (baseLine)
-            exit(2)
+        except:
+            print ("error:", sys.exc_info()[0])                     # Shouldn't happen.. report it
+            print (baseLine)                                        # dump the baseline record for debug
+            exit(2)                                                 # and stop the music
         #
         #  Do the precinct stats accumulation for this record
         #
-        calc_precinct()
+        calc_precinct(CntyNum+int(NormPct))
     #
     #   Done, print summary and exit
     #
-    printLine(f"Writing precinct summary file {pctFile}...")
-    print (f"# precints in list = {len(PctPrecinct)}")
-    write_precinct()                                            # write the precinct.csv file
-    pctFileh.close()                                            # close precinct file
-    baseFileh.close()                                           # close output file
+    if (NoPct == 0):
+        write_precinct(MultiCounty)                                 # write the precinct.csv file(s)
+    else:
+        printLine("No Precinct Summary File Created (-NoPct option present)")
+    baseFileh.close()                                               # close base.csv file
     if (voterEmailFile != "" ):
-        emailLogFileh.close()
+        emailLogFileh.close()                                       # close any email address file used
     printLine("<===> Total Eligible Voter Records Read: {0:,}".format(linesRead))
     printLine("<===> Total Voting History Stats added: {0:,}".format(statsAdded))
     printLine("<===> Total Registered Voters with no Recent Vote History: {0:,}".format(noVotes))
     printLine("<===> Total Registered Voters with no Vote Record: {0:,}".format(noData))
-    printLine("<===> Total Email Addresses added: {0:,}".format(emailAdded))
+    if (voterEmailFile != "" ):
+        printLine("<===> Total Email Addresses added: {0:,}".format(emailAdded))
     printLine("<===> Total Precincts found and {0} Records written: {1:,}".format(pctFile, NumPct))
     printLine("<===> Total base.csv Records written: {0:,}".format(linesWritten))
     #
@@ -1729,7 +1874,7 @@ def main():
         printLine (f"Total Elapsed time is {TotMin} Minutes {TotSec} seconds.\n")
     else:
         printLine (f"Total Elapsed time is {TotSec} seconds.\n")
-    printFileh.close()
+    printFileh.close()                                          # close the console log file
     return (0)
     #
     #  End of program
