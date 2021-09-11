@@ -1,0 +1,5 @@
+Precinct,CongDist,AssmDist,SenDist ,BrdofEd,CntyComm,Rwards,Swards,SchBdTrust,SchBdAtLrg,Generals,Primaries,Polls,Absentee,Reg-NP,Reg-IAP,Reg-LP,Reg-GP,Reg-Other,Reg-Rep,Active Rep,% Rep,Reg-Dem,Active Dem,% Dem,Reg AllOther,Active AllOther,% AllOther,#Strong Rep,#Moderate Rep,#Weak Rep,#Strong Dem,#Moderate Dem,#Weak Dem,#Strong Other,#Moderate Other,#Weak Other
+1,CD2,AD33,SD19,,,,,,,997,1118,448,1540,54,23,1,0,1,326,319,76.17%,23,23,5.37%,79,75,18.46%,160,82,63,10,10,3,13,27,26,
+2,CD2,AD33,SD19,,,,,,,1035,1039,338,1620,49,32,3,0,0,236,227,68.8%,23,23,6.71%,84,81,24.49%,130,64,23,15,6,1,27,32,13,
+3,CD2,AD33,SD19,,,,,,,445,32,1102,1145,35,10,4,0,2,128,122,65.64%,16,14,8.21%,51,49,26.15%,58,47,14,8,4,2,11,15,8,
+4,CD2,AD33,SD19,,,,,,,404,107,947,1030,55,22,1,0,2,145,141,58.23%,24,22,9.64%,80,73,32.13%,54,44,36,12,5,4,12,24,24,
