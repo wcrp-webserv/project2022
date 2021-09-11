@@ -1536,6 +1536,8 @@ def main():
     BaseCol = len(baseHeading)
     linesIncRead = 0
     linesRead = 0
+    linesWritten = 0
+    InactiveVoters = 0
     for item in eframe.itertuples(name = None, index=False):
         #
         #  Read eligible Voter File row by row
@@ -1554,7 +1556,10 @@ def main():
         voterid = line1Read[eDict["VoterID"]]                       # fetch voter ID of this entry
         baseLine[bDict["StateID"]] = makestr(voterid)
         baseLine[bDict["CountyID"]] = makestr(line1Read[eDict["CountyVoterID"]])
-        baseLine[bDict["Status"]]   = makestr(line1Read[eDict["CountyStatus"]])
+        vstat = makestr(line1Read[eDict["CountyStatus"]])
+        if (vstat.lower() == "inactive"):
+            InactiveVoters += 1                                     # count inactive voters
+        baseLine[bDict["Status"]]   = vstat
         Cnty = line1Read[eDict["County"]].title()                   # Get Count Name with 1st letter of each word UC
         baseLine[bDict["County"]]   = Cnty                          # store county name in normalized form
         #
@@ -1837,6 +1842,7 @@ def main():
         #
         try:
             print (",".join(baseLine), file = baseFileh)            # write this voter's record to output file
+            linesWritten += 1                                       # count it written
         except:
             print ("error:", sys.exc_info()[0])                     # Shouldn't happen.. report it
             print (baseLine)                                        # dump the baseline record for debug
@@ -1855,7 +1861,8 @@ def main():
     baseFileh.close()                                               # close base.csv file
     if (voterEmailFile != "" ):
         emailLogFileh.close()                                       # close any email address file used
-    printLine("<===> Total Eligible Voter Records Read: {0:,}".format(linesRead))
+    printLine("<===> Total Registered Voter Records Read: {0:,}".format(linesRead))
+    printLine("<===> Total Inactive Voters: {0:,}".format(InactiveVoters))
     printLine("<===> Total Voting History Stats added: {0:,}".format(statsAdded))
     printLine("<===> Total Registered Voters with no Recent Vote History: {0:,}".format(noVotes))
     printLine("<===> Total Registered Voters with no Vote Record: {0:,}".format(noData))
