@@ -289,12 +289,12 @@ def main():
             else:
                 numOth = numOth + 1                                     # Add to number of "Other Party" Voters
             snum = outrow[StreetNo]
-            if isinstance(snum,str):
-                worksheet.write_blank(row, 7, None)                     # Street Number is string
-            elif snum == "":
+            if snum == "":
                 worksheet.write_blank(row, 7, None)                     # Street Number is blank
-            else:
+            elif snum.isdigit():
                 worksheet.write_number (row, 7, int(snum), fmt_right)   # Street Number is numeric
+            else:
+                worksheet.write_blank(row, 7, None)
             SName = outrow[Streetname]
             if (SName == ""):
                 worksheet.write_blank(row, 8, None)                     # Street Name Blank
