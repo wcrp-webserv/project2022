@@ -160,7 +160,7 @@ def printLine (printData):
     datestring = datetime.now()
     datestring = datestring.strftime("%m/%d/%Y %H:%M:%S")
     print( ProgName + " " + datestring + ' - ' + printData)
-    print( ProgName + " " + datestring + ' - ' + printData) #, file=printFileh)
+    print( ProgName + " " + datestring + ' - ' + printData, file=printFileh)
     return
 
 def printhelp():
@@ -1075,6 +1075,7 @@ def main():
                 sframe = pd.read_csv (svyfile,low_memory=False, encoding='latin-1')     #  Read .csv survey file into dataframe "sframe"
             else:
                 sframe = pd.read_excel (svyfile)                    #  Read .xls or .xlsx survey file into dataframe "sframe"
+            sframe = sframe.replace(np.nan, '', regex=True)         #  make any nans into '' All data frame
             ec = init_spreadsheet()                                 #  initialize spreadsheet required variables
             if(ec != 0):
                 printLine (f"Spreadsheet not in expected survey format... Error Code {ec} skipping")
@@ -1232,7 +1233,11 @@ def main():
             #
             # Build Volunteer Name Array and Counts by Volunteer
             #
-            Vname = rlist[VolFirstCol] + " " + rlist[VolLastCol] # get volunteer name
+            try:
+                Vname = rlist[VolFirstCol] + " " + rlist[VolLastCol] # get volunteer name
+            except:
+                print(f"Error on Row {row}")
+                print(rlist)
             try:
                 Vx = VolunteerName.index(Vname)                 # find this Volunteer in Table
                 VolunteerAttempts[Vx] += 1                      # Bump Attempts
