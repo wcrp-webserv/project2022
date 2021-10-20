@@ -179,7 +179,7 @@ def main():
     except Exception as e:
         print('>>> Error Opening file {0}!!\n>>> Message, {1}'.format(Sosfile, str(e)))
         exit(2)
-    basehead=list(base.columns)                             # get SOS data column labels
+    basehead=list(base.columns)                                 # get SOS data column labels
     bDict = {basehead[i]: i for i in range(len(basehead))}  # dictionary of indexes to names for base.csv row
     #
     #  Build date this race sheet was created (today)
@@ -746,11 +746,12 @@ def main():
     MWRep = 0                                               # Moderate/Weak Republicans
     SOTH = 0                                                # Strong OTH
     cycledate = datetime(int(cycle),11,1)                   # max reg date for this cycle
+    District = Dbase.to_dict(orient='list')                 # convert Dbase dataframe to dictionary with parallel columns
+    #Dbase =[]                                               # release dataframe memory
     for x in range(0, baserows):
-        row = list(Dbase.iloc[x])                           # get next base,csv entry for this district
-        status = row[bDict["Status"]]                       # get ACTIVE/INACTIVE
-        party = row[bDict["Party"]]                         # get party registered to
-        strength = row[bDict["LikelytoVote"]]               # get STRONG/MODERATE/WEAK
+        status = District["Status"][x]                      # get ACTIVE/INACTIVE
+        party = District["Party"][x]                        # get party registered to
+        strength = District["LikelytoVote"][x]              # get STRONG/MODERATE/WEAK
 #
 #        regdate = datetime.strptime(row[bDict["RegDate"]],'%m/%d/%Y')     # get registration date as datetime object (really slow!)
 #        if(regdate > cycledate):
