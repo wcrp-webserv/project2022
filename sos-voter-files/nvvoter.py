@@ -310,7 +310,7 @@ def printLine (printData):
     datestring = datetime.datetime.now()
     datestring = datestring.strftime("%m/%d/%Y %H:%M:%S")
     if (printData[-1] == "\r"):
-        print( ProgName + " " + datestring + ' - ' + printData, end="")
+       # print( ProgName + " " + datestring + ' - ' + printData, end="")
         return
     print( ProgName + " " + datestring + ' - ' + printData)
     print( ProgName + " " + datestring + ' - ' + printData, file=printFileh)

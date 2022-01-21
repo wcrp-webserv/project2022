@@ -377,15 +377,16 @@ def init_spreadsheet():
     #
     nfnd = 0
     for j in range(0,len(Headings)):
-        if (Headings[j] == VolFirstText):
+        Colhdr = Headings[j].lower()                    # Get header of This Column in lower case
+        if (Colhdr == VolFirstText.lower()):
             VolFirstCol = j                             # Save Column index for Volunteer First Name
-        elif (Headings[j] == VolLastText):
+        elif (Colhdr == VolLastText.lower()):
             VolLastCol = j                              # Save Column index for Volunteer Last Name
-        elif (Headings[j] == PhoneText):
+        elif (Colhdr == PhoneText.lower()):
             PhoneCol = j                                # Save Column index for Phone Number Called
-        elif (Headings[j] == ResponseText):
+        elif (Colhdr == ResponseText.lower()):
             ResponseCol = j;                            # Save Column index for Call Response
-        elif (Headings[j] == DateText):
+        elif (Colhdr == DateText.lower()):
             DateCol = j                                 # Save Column index for Call Date
     #
     #  Be Sure We Found the columns Headings We Need
@@ -1075,7 +1076,6 @@ def main():
                 sframe = pd.read_csv (svyfile,low_memory=False, encoding='latin-1')     #  Read .csv survey file into dataframe "sframe"
             else:
                 sframe = pd.read_excel (svyfile)                    #  Read .xls or .xlsx survey file into dataframe "sframe"
-            sframe = sframe.replace(np.nan, '', regex=True)         #  make any nans into '' All data frame
             ec = init_spreadsheet()                                 #  initialize spreadsheet required variables
             if(ec != 0):
                 printLine (f"Spreadsheet not in expected survey format... Error Code {ec} skipping")
@@ -1160,9 +1160,19 @@ def main():
         #  Next survey file loaded initialize date range of survey
         #-----------------------------------------------------------
         #
+        #  Fix up anomalies in data file we've encountered along the way
+        #
+        sframe = sframe.replace(np.nan, '', regex=True)         #  make any nans into '' anywhere in the data frame
+        if(sframe.columns[0] != "Title"):                       # Fix corrupted 1st Column name we see in some i360 files
+            CorruptHdr = sframe.columns[0]
+            sframe.rename(columns={CorruptHdr: 'Title'}, inplace=True)
+        #
         rdate = sframe.iloc[0][DateText]                        # get response date from first row
         if (isinstance(rdate,str)):
-            rdate = datetime.strptime(rdate,"%m/%d/%Y")         # Text date, convert to datetime object
+            if(rdate[4] == "-"):
+                rdate = datetime.strptime(rdate,"%Y-%m-%d")     # Text date yyyy-mm-dd, convert to datetime object
+            else:
+                rdate = datetime.strptime(rdate,"%m/%d/%Y")     # Text date mm-dd-yyyy, convert to datetime object
         else:
             rdate = rdate.to_pydatetime()                       # convert pandas timestamp to datetime object
         svystart = rdate                                        # init start and end dates as first row's date
@@ -1194,7 +1204,10 @@ def main():
             # Process Date in either format (depending on whether .csv or .xlsx) file
             #
             if (isinstance(rdate,str)):
-                rdate = datetime.strptime(rdate,"%m/%d/%Y")     # date is string, convert to datetime object
+                if(rdate[4] == "-"):
+                    rdate = datetime.strptime(rdate,"%Y-%m-%d") # Text date yyyy-mm-dd, convert to datetime object
+                else:
+                    rdate = datetime.strptime(rdate,"%m/%d/%Y") # Text date mm-dd-yyyy, convert to datetime object
             else:
                 rdate = rdate.to_pydatetime()                   # date is pandas Timestamp, convert to datetime object
             if (rdate < svystart):
