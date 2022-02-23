@@ -2,7 +2,7 @@
 #-----------------------------------------------------------------------------------
 #                               voter_screen.py                                     
 #                                                                                   
-#  purpose: currently creates some statistics by analyzing a base.csv type file and
+#  purpose: creates some statistics by analyzing a base.csv type file 
 #   input:  analyze a file in the form of base.csv from nvvoter2.pl
 #           filters: "type": ad or sd 
 #           "district" number of ad or sd
@@ -113,6 +113,9 @@ def process_row(row):
             othvote   +=  1
         return 0
 
+#
+# main: open base file and create
+#
 def main():
     column = ""
     if args.dist == "SD":
@@ -164,7 +167,7 @@ def main():
 
     #exit(0)
     # Create a workbook and add a worksheet.
-    workbook = xlsxwriter.Workbook("stats.")
+    workbook = xlsxwriter.Workbook("stats.jimmy")
     worksheet = workbook.add_worksheet()
 
     # set workbook print properties

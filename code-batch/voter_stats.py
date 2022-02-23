@@ -29,13 +29,21 @@ other = 0
 nonps = 0
 iaps = 0
 anyvote = 0
+anymvote = 0
 repvote = 0
+repmvote = 0
 demvote = 0
+demmvote = 0
+dempvote = 0
 othvote = 0
+othmvote = 0
 nonpvote = 0
+nonpmvote = 0
 iapvote = 0
+iapmvote = 0
 vote = ""
 voted = ['BR', 'FW', 'EV', 'MB', 'PP'] #, 'PV']
+mailvote = ['BR', 'MB'] 
 
 
 #
@@ -96,22 +104,47 @@ def process_row(row):
         if vote in voted:
             anyvote+=1
             repvote+=1
+
     elif (row['Party'] == 'Non-Partisan'):
         nonps+=1
         if vote in voted:
             anyvote+=1
             nonpvote+=1
+
     elif (row['Party'] == 'Independent American Party'):
         iaps+=1
         if vote in voted:
             anyvote+=1
             iapvote+=1
+            
     else:
         other+=1
         if vote in voted:
             anyvote+=1
             othvote +=1
         return 0
+
+        votetype+=1
+
+def typevote(vote):
+    global anymvote
+    global demmvote
+    global repmvote
+    global othmvote
+    global iapmvote
+    global nonpmvote
+    if (vote  == 'Mb'):
+        democrats+=1
+        if vote in voted:
+            anyvote+=1
+            demvote+=1
+        if vote in mailvote:
+            anymvote+=1
+            demmvote+=1
+
+
+
+ 
 
 def main():
     column = ""
@@ -161,6 +194,7 @@ def main():
     print( 'VOTERS: {:6d} REP: {:6d} DEM: {:6d} NONP: {:6d} IAP: {:6d} OTH: {:6d}'.format(allvoters, republicans, democrats, nonps, iaps, other))
     print( ' VOTED: {:6d} REP: {:6d} DEM: {:6d} NONP: {:6d} IAP: {:6d} OTH: {:6d}'.format(anyvote, repvote, demvote, nonpvote, iapvote, othvote))
     print( '   T/O:  {:0.3f} REP:  {:0.3f} DEM:  {:0.3f} NONP:  {:0.3f} IAP:  {:0.3f} OTH:  {:0.3f}'.format(div0(anyvote,allvoters), div0(repvote,republicans), div0(demvote,democrats), div0(nonpvote,nonps), div0(iapvote,iaps), div0(othvote,other)))
+    print( '  MAIL:  {:6d} REP:   {:6d} DEM:   {:6d} NONP:   {:6d} IAP:  {:6d} OTH:   {:6d}'.format(anymvote, repmvote, demmvote, nonpmvote, iapmvote, othmvote))
     print( '   T/O:  {:0.3f} NONALIGNED:  {:0.3f}'.format(div0(anyvote,allvoters), div0(nonpvote+iapvote+othvote,nonps+iaps+other)))
 
     exit(0)

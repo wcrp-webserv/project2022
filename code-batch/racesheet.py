@@ -29,6 +29,7 @@ Dist=""                                     # district to analyze (ADnn or SDnn)
 Candidate = ""                              # Candidate we are doing analysis for (default = "Candidate" + "Dist")
 cycle = ""                                  # election cycle to analyze
 histdir = ""                                # History Data File directory
+cfgdir = ""                                 # Configuration file directory    
 bDict=[]                                    # Dictionary for base.csv column access by text title (built when base.csv opened)
 Cfgfile = "RaceCfg.xlsx"                    # Party Voting Percentages Configuration Spreadsheet
 
@@ -38,7 +39,7 @@ Cfgfile = "RaceCfg.xlsx"                    # Party Voting Percentages Configura
 #                                                      *
 #*******************************************************
 def printhelp():
-    print('racesheet.py -d <district> -c <CandidateName> -y <electionyear> -s <Sosfile> -h <histdir>')
+    print('racesheet.py -d <district> -c <CandidateName> -y <electionyear> -s <Sosfile> -h <histdir> -g <cfgdir>')
     print('    <district> = AD or SD district to do race sheet for - REQUIRED')
     print('    <CandidateName> = Name of candidate sheet generated for:')
     print('        default is generic \"CandidateDist\" if none specified')
@@ -48,13 +49,17 @@ def printhelp():
     print('        default is file base.csv in current working directory')
     print('    <histdir> = directory containing required election history data')
     print('        default is current working directory')
+    print('    <cfgdir> = directory containing Cfgfile.xlsx')
+    print('        default is current working directory')
+    print('    <cfgfile> = Race constants in xlsx format')
+    print('        default is RaceCfg.xlsx')
     return(0)
 
 def args(argv):
-    global Sosfile, outfile, Dist, Candidate, cycle, histdir
+    global Sosfile, outfile, Dist, Candidate, cycle, histdir, cfgdir, Cfgfile
     print("")
     try:
-        opts, args = getopt.getopt(argv,"?:s:d:c:y:h:",["help", "sosfile=", "district=", "candidate=", "year=", "history="])
+        opts, args = getopt.getopt(argv,"?:s:d:c:y:h:g:f:",["help", "sosfile=", "district=", "candidate=", "year=", "history=", "cfgdir=", "cfgfile"])
     except getopt.GetoptError:
         printhelp()
         exit(2)
@@ -70,6 +75,10 @@ def args(argv):
             Candidate = arg
         elif opt in ("-h", "--history"):
             histdir = arg
+        elif opt in ("-g", "--config"):
+            cfgdir = arg
+        elif opt in ("-f", "--cfgfile"):
+            Cfgfile = arg
         elif opt in ("-d", "--district"):
             Dist = arg
             Dist= Dist.upper()
@@ -112,7 +121,7 @@ def FixVoteAndName(Candidates,Votes):
 #**********************************************
 #
 def main():
-    global base, outfile, Sosfile, Dist, Candidate, cycle, histdir, bDict
+    global base, outfile, Sosfile, Dist, Candidate, cycle, histdir, bDict, cfgdir, Cfgfile
     global SOSdate, CompDate
 
     StartTime = time.time()                                 # get start time (to calc program run time)
@@ -148,8 +157,16 @@ def main():
     print("Doing Analysis for district " + Dist + ", Candidate " + Candidate + " for the " + cycle + " election cycle.")
     print("Output report file is " + outfile)
     print(f"Loading Configuration file {Cfgfile}")
+    #
+    if (cfgdir != ""):
+        if(cfgdir[1] != ":"):
+            cfgdir = os.path.join(Dir,cfgdir)  
+            Cfgfile = os.path.join(cfgdir,Cfgfile)
+# if a History File Subdirectory specified add it to current path
+    else:
+        cfgdir = Dir
     try:
-        cdf = pd.read_excel (Cfgfile)                       # read configuration into DataFram cdf
+        cdf = pd.read_excel (Cfgfile)                      # read configuration into DataFram cdf
     except Exception as e:
         print('>>> Error Opening file {0}!!\n>>> Message, {1}'.format(Cfgfile, str(e)))
         exit(2)

@@ -1170,9 +1170,26 @@ def main():
         rdate = sframe.iloc[0][DateText]                        # get response date from first row
         if (isinstance(rdate,str)):
             if(rdate[4] == "-"):
+                #
+                #  Date string is yyyy-mm-dd format
+                #
                 rdate = datetime.strptime(rdate,"%Y-%m-%d")     # Text date yyyy-mm-dd, convert to datetime object
             else:
-                rdate = datetime.strptime(rdate,"%m/%d/%Y")     # Text date mm-dd-yyyy, convert to datetime object
+                #
+                #  date string is of one of the following formats:
+                #
+                #  mm/dd/yyyy,  m/dd/yyyy, mm/d/yyyy, m/d/yyyy
+                #  mm/dd/yy,  m/dd/yy, mm/d/yy, m/d/yy
+                # 
+                # Make sure it's mm/dd/yyyy if it's not already 
+                #  
+                if (rdate[1] == '/'):
+                    rdate = '0' + rdate                         # single digit month, make 0n
+                if (rdate[4] == '/'):
+                    rdate = rdate[0:3] + '0' + rdate[3:]        # single digit day, make 0n
+                if (len(rdate) == 8):
+                    rdate = rdate[0:6] + '20' +rdate[6:]        # two digit year make 20nn
+                rdate = datetime.strptime(rdate,"%m/%d/%Y")     # Text date mm/dd/yyyy, convert to datetime object
         else:
             rdate = rdate.to_pydatetime()                       # convert pandas timestamp to datetime object
         svystart = rdate                                        # init start and end dates as first row's date
@@ -1206,7 +1223,13 @@ def main():
             if (isinstance(rdate,str)):
                 if(rdate[4] == "-"):
                     rdate = datetime.strptime(rdate,"%Y-%m-%d") # Text date yyyy-mm-dd, convert to datetime object
-                else:
+                else:  
+                    if (rdate[1] == '/'):
+                        rdate = '0' + rdate                         # single digit month, make 0n
+                    if (rdate[4] == '/'):
+                        rdate = rdate[0:3] + '0' + rdate[3:]        # single digit day, make 0n
+                    if (len(rdate) == 8):
+                        rdate = rdate[0:6] + '20' +rdate[6:]        # two digit year make 20nn
                     rdate = datetime.strptime(rdate,"%m/%d/%Y") # Text date mm-dd-yyyy, convert to datetime object
             else:
                 rdate = rdate.to_pydatetime()                   # date is pandas Timestamp, convert to datetime object

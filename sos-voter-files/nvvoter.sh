@@ -1,37 +1,24 @@
 #!/bin/bash
 echo 'Starting creating voter history'
-echo '#=======================================================#'
-echo '#     This script transforms NVSOS voter downloads      #'
-echo '#     data comes in two files:                          #'
-echo '#     - data input is in two files from NVSOS download: #'
-echo '#       *VtHst* ---- voter history 20 past votes        #'
-echo '#       *ElgbVtr* -- elegible voters info               #'
-echo '#     data is output into three files                   #'
-echo '#        base.csv     base data output                  #'
-echo '#        precinct.csv predinct summaryies for disctrict #'
-echo '#        print.txt    printed log                       #'
-echo '#=======================================================#'
+echo '#==========================================================#'
+echo '#     This script transforms NVSOS voter downloads         #'
+echo '#     data comes in two files:                             #'
+echo '#     - data input in serveral files from NVSOS download:  #'
+echo '#     -config        nvconfig.xlsx                         #'
+echo '#     -infile        *VtHst*      vote history             #'
+echo '#     -regfile       *ElgbVtr*    elegible voters info     #'
+echo '#     -xref          input precinct to district xref       #'
+echo '#     -outfile       base.csv     base data out            #'
+echo '#     -emailfile     emails.csv   input emails             #'
+echo '#     other output files                                   #'
+echo '#                                                          #'
+echo '#        precinct.csv predinct summary for disctrict       #'
+echo '#        print.txt    printed log                          #'
+echo '#==========================================================#'
 
-perl ~/perl5/nvvoter1.pl -infile *VtHst*
-
-echo 'sorting voter history'
-echo '#=======================================================#'
-echo '#     Sorting intermediate file                         #'
-echo '#=======================================================#'
-
-csvsort -c 1 -e Latin1 voterdata.csv > voterdata-s.csv
-
-echo 'completed sorting voter history'
-echo '#=======================================================#'
-echo '#     Final step in transformation                      #'
-echo '#=======================================================#'
-
-echo 'starting creating of base file'
-
-perl ~/perl5/nvvoter2.pl -infile *ElgbVtr*
+python ~/python/nvvoter.py -config ~/python/nvconfig.xlsx -infile *VtHst* -regfile *ElgbVtr* -outfile base.csv -xref PreinctXref.xlsx
 
 echo 'completed creating base file'
-
 
 echo '#=======================================================#'
 echo '#     Cleaning up after transformation                  #'

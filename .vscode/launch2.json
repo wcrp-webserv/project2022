@@ -1,0 +1,27 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "cwd":  "${workspaceFolder}/testdata",
+            //"args": ["/Users/jimsievers/Desktop/simon-nick/base-clark-201111.csv" "ALL" "sd5"],
+            //"args": ["-s" "/Users/jimsievers/Onedrive/nvsos-nevada-all/state-20210511/clark/base.csv" "-d" "/Users/jimsievers/Dropbox/CCRP Precinct Captain/precinct_captain_files/clark-20210511"],
+            //"args": ["-infile" "SurveyResponseRpt637641423205681967.xlsx" "-datadir" "~/Dropbox/2022-electioneering/canvass/3survey-responses/" "-rptfile" "SurveyResponseRpt"],
+            //"args": [ "-infile" "i360" "-datadir" "~/Dropbox/2022-electioneering/canvass/3survey-responses/" "-rptfile" "SurveyResponseRpt"],
+            //"args": ["-survey" "p0-all-oth-afflu"   "-rptfile" "jimmy.txt"],
+            //"args": ["-infile" "~/symlinks/nvsos-nevada/state-20210811/washoe/*VtHst*" "-regfile" "~/symlinks/nvsos-nevada/state-20210811/washoe/*ElgbVtr*" "-outfile" "~/symlinks/nvsos-nevada/state-20210811/washoe/base.csv" "-xref" "../sos-voter-files/PrecinctXref.xlsx"],
+            //"args": ["-infile" "*VtHst*lyon*" "-regfile" "*ElgbVtr*lyon*" "-outfile" "debug/base.csv" "-xref" "../sos-voter-files/PrecinctXref.xlsx"],
+            "args": ["-d" "AD30" "-c" "Cand30" "-y" "2022" "-s" "base-wa.csv" "-h" "data"],
+            //"args": ["-d" "AD29" "-c" "Candidate29" "-y" "2022" "-s" "base-cl.csv" "-h" "data"],
+            //args": ["-" ], // nvvoter.py
+            "console": "integratedTerminal" 
+        }
+    ]
+}

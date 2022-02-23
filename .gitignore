@@ -1,5 +1,9 @@
 venv
 .vscode/launch.json
+.vscode/launch-dflt.json
+.vscode/launch-py.json
+.vscode/launch-perl.json
+.vscode/launch-prl.json
 .vscode/settings.json
 testdata
 voterdata*.csv
