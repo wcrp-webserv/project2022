@@ -258,9 +258,6 @@ def main():
                     outrow[i] = ""
                 i += 1
             party = outrow[RegParty]                                    # Fetch Party of this voter
-            if (party == "Democrat"):
-                numDem=numDem + 1                                       # Add to number of Democrat Voters
-                continue                                                # don't write out record
             row = row+1                                                 # write to next row
             worksheet.write_number (row, 0, outrow[CountyId], fmt_right)  # CountyID
             worksheet.write_string (row, 1, outrow[First], fmt_left)    # First
@@ -283,7 +280,10 @@ def main():
             else:
                 worksheet.write (row, 4, phone, fmt_right)              # Phone not numeric
             worksheet.write (row, 5, outrow[RegDate], date_format)      # Regdate
-            worksheet.write_string (row, 6, party, fmt_left)            # Party
+            worksheet.write_string (row, 6, party, fmt_left) 
+            # Party
+            if (party == "Democrat"):
+                numDem = numDem + 1
             if (party == "Republican"):
                 numRep=numRep + 1                                       # Add to # Republican Voters
             else:
